@@ -1,103 +1,101 @@
 {% extends "layout.html" %}
 
-{% block title %}메인{% endblock %}
+{% block title %}Communa - 메인{% endblock %}
 
 {% block content %}
-
 <div class="container py-5">
 
-    <!-- Hero Section -->
-    <div class="row align-items-center mb-5 bg-white rounded-4 shadow-sm p-5">
+    <div class="row align-items-center mb-5 bg-white rounded-4 shadow-sm p-5 border-start border-5" style="border-color: #20828A !important;">
 
-        <!-- Text Area -->
         <div class="col-lg-7">
-            <span class="badge bg-primary-subtle text-primary mb-3 px-3 py-2">
-                Community Service
+            <span class="badge mb-3 px-3 py-2 fw-normal" style="background-color: rgba(32, 130, 138, 0.1); color: #20828A;">
+                <i class="bi bi-stars me-1"></i> Community Service
             </span>
 
-            <h1 class="display-5 fw-bold mb-3">커뮤니티 플랫폼</h1>
+            <h1 class="display-5 fw-bold mb-3 text-dark">Communa 플랫폼</h1>
 
             <p class="lead text-secondary mb-4">
-                회원 관리, 게시판, 그리고 실시간 랜덤 채팅까지
+                사람들을 잇고, 지식을 나누며, 즐겁게 대화하세요.
                 <br class="d-none d-md-block">
-                한 번에 사용할 수 있는 통합 커뮤니티 서비스입니다.
+                회원 관리, 게시판, 실시간 랜덤 채팅까지 통합된 서비스입니다.
             </p>
 
             <div class="d-flex flex-wrap gap-2">
                 {% if session.get('user_id') %}
-                    <a href="/board" class="btn btn-primary btn-lg px-4">
+                    <a href="/board" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #20828A;">
                         게시판 가기
                     </a>
-                    <a href="/chat/random" class="btn btn-outline-primary btn-lg px-4">
+                    <a href="/chat/random" class="btn btn-outline-secondary btn-lg px-4 shadow-sm">
                         랜덤 채팅 시작
                     </a>
                 {% else %}
-                    <a href="/login" class="btn btn-primary btn-lg px-4">
+                    <a href="/login" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #20828A;">
                         로그인
                     </a>
-                    <a href="/join" class="btn btn-outline-primary btn-lg px-4">
+                    <a href="/join" class="btn btn-outline-secondary btn-lg px-4 shadow-sm">
                         회원가입
                     </a>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Icon Area -->
         <div class="col-lg-5 text-center mt-4 mt-lg-0">
-            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center"
-                 style="width:180px;height:180px;">
-                <i class="bi bi-people text-primary" style="font-size:80px"></i>
+            <div class="rounded-circle d-inline-flex align-items-center justify-content-center shadow-sm"
+                 style="width:200px; height:200px; background-color: rgba(32, 130, 138, 0.05);">
+                <img src="{{ url_for('static', filename='logo/communa_logo.svg') }}" style="width: 120px; height: 120px;">
             </div>
         </div>
     </div>
 
-    <!-- Feature Cards -->
     <div class="row g-4">
 
-        <!-- Member Feature -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 rounded-4">
+            <div class="card border-0 shadow-sm h-100 rounded-4 feature-card">
                 <div class="card-body p-4 text-center">
-                    <i class="bi bi-person-circle fs-1 text-primary mb-3"></i>
+                    <div class="icon-box mb-3 mx-auto" style="color: #20828A;">
+                        <i class="bi bi-person-bounding-box fs-1"></i>
+                    </div>
                     <h5 class="fw-bold">회원 시스템</h5>
                     <p class="text-muted small">
-                        회원가입, 로그인, 프로필 관리 기능을 제공합니다.
+                        나만의 프로필을 관리하고<br>Communa의 정식 회원이 되어보세요.
                     </p>
                     <a href="{% if session.get('user_id') %}/mypage{% else %}/login{% endif %}"
-                       class="btn btn-primary btn-sm">
+                       class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
                         바로가기
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Board Feature -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 rounded-4">
+            <div class="card border-0 shadow-sm h-100 rounded-4 feature-card">
                 <div class="card-body p-4 text-center">
-                    <i class="bi bi-journal-text fs-1 text-primary mb-3"></i>
-                    <h5 class="fw-bold">게시판</h5>
+                    <div class="icon-box mb-3 mx-auto" style="color: #20828A;">
+                        <i class="bi bi-chat-square-quote fs-1"></i>
+                    </div>
+                    <h5 class="fw-bold">자유 게시판</h5>
                     <p class="text-muted small">
-                        자유롭게 글을 작성하고 다른 사용자와 소통할 수 있습니다.
+                        다양한 주제로 소통하세요.<br>지식 공유와 일상 이야기가 가득합니다.
                     </p>
-                    <a href="/board" class="btn btn-primary btn-sm">
+                    <a href="/board" class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
                         게시판 이동
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Random Chat Feature -->
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 rounded-4">
+            <div class="card border-0 shadow-sm h-100 rounded-4 feature-card">
                 <div class="card-body p-4 text-center">
-                    <i class="bi bi-chat-dots fs-1 text-primary mb-3"></i>
+                    <div class="icon-box mb-3 mx-auto" style="color: #20828A;">
+                        <i class="bi bi-lightning-charge fs-1"></i>
+                    </div>
                     <h5 class="fw-bold">랜덤 채팅</h5>
                     <p class="text-muted small">
-                        랜덤 매칭으로 새로운 사용자와 실시간 채팅을 경험하세요.
+                        익명의 사용자들과<br>실시간으로 즐겁게 대화해 보세요.
                     </p>
                     <a href="{% if session.get('user_id') %}/chat/random{% else %}/login{% endif %}"
-                       class="btn btn-primary btn-sm">
+                       class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
                         채팅 시작
                     </a>
                 </div>
@@ -106,16 +104,30 @@
 
     </div>
 
-    <!-- Notice Section -->
-    <div class="mt-5 p-4 bg-white rounded-4 shadow-sm">
-        <h6 class="fw-bold">📢 공지사항</h6>
-        <ul class="mb-0 small text-muted">
-            <li>서비스는 현재 개인 프로젝트 테스트 단계입니다.</li>
-            <li>버그나 개선사항은 언제든지 제안해주세요.</li>
-            <li>랜덤 채팅은 로그인 후 이용 가능합니다.</li>
+    <div class="mt-5 p-4 rounded-4 shadow-sm border-0" style="background-color: #f1f3f5;">
+        <h6 class="fw-bold text-dark"><i class="bi bi-megaphone me-2 text-warning"></i>공지사항</h6>
+        <ul class="mb-0 small text-muted lh-lg">
+            <li>Communa 서비스는 사용자 간의 건전한 소통 문화를 지향합니다.</li>
+            <li>실시간 채팅 시 상대방에 대한 예의를 지켜주세요.</li>
+            <li>서비스 개선 제안은 마이페이지 1:1 문의를 이용해주세요.</li>
         </ul>
     </div>
 
 </div>
 
+<style>
+    /* 카드 호버 효과: 사용자가 마우스를 올리면 살짝 들리는 느낌 */
+    .feature-card {
+        transition: transform 0.3s ease, shadow 0.3s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+
+    /* 전체 배경색 살짝 조정 */
+    body {
+        background-color: #fdfdfd;
+    }
+</style>
 {% endblock %}
