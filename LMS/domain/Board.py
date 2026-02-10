@@ -1,5 +1,5 @@
 class Board:
-    def __init__(self, id, title, content, member_id, active=True, writer_name=None, created_at=None, writer_uid=None):
+    def __init__(self, id, title, content, member_id, active=True, writer_name=None, created_at=None, writer_uid=None, visits=0, likes=0):
         self.id = id  # DB의 PK
         self.title = title
         self.content = content
@@ -10,6 +10,8 @@ class Board:
         self.writer_name = writer_name
         self.created_at = created_at
         self.writer_uid = writer_uid
+        self.visits = visits
+        self.likes = likes
 
     @classmethod
     def from_db(cls, row: dict):
@@ -24,7 +26,8 @@ class Board:
             # JOIN 쿼리 시 사용할 이름과 아이디
             writer_name=row.get('writer_name'),
             created_at=row.get('created_at'),
-            writer_uid=row.get('writer_uid')
+            writer_uid=row.get('writer_uid'),
+            visits=row.get('visits')
         )
 
     def __str__(self): # print(board)로 테스트용

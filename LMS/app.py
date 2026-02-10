@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, g, flash
+from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from dotenv import load_dotenv
@@ -146,6 +146,7 @@ def board_write():
         except Exception as e:
             print(e)
 
+
 @app.route('/board')
 def board_list():
     page = request.args.get('page', 1, type=int)
@@ -157,16 +158,27 @@ def board_list():
     total_count = fetch_query(count_sql)[0]['cnt']
     total_pages = ceil(total_count / per_page)
 
-    # 데이터 가져오기
-    sql = f"""SELECT b.*, m.name as writer_name
+    # [개선] 좋아요 수와 댓글 수를 각각 집계하기 위해 DISTINCT 또는 서브쿼리 사용
+    sql = f"""
+        SELECT 
+            b.*, 
+            m.name as writer_name,
+            (SELECT COUNT(*) FROM board_likes WHERE board_id = b.id) as like_count,
+            (SELECT COUNT(*) FROM board_comments WHERE board_id = b.id) as comment_count
         FROM boards b
         JOIN members m ON b.member_id = m.id
         ORDER BY b.id DESC
-        LIMIT {per_page} OFFSET {offset}""" # 기존 SQL 쿼리
+        LIMIT {per_page} OFFSET {offset}
+    """
     rows = fetch_query(sql)
-    boards = [Board.from_db(row) for row in rows]
 
-    # HTML이 기대하는 'pagination' 변수를 가짜로 만들어서 넘겨줍니다.
+    boards = []
+    for row in rows:
+        board = Board.from_db(row)
+        board.like_count = row['like_count']
+        board.comment_count = row['comment_count'] # 댓글 수 할당
+        boards.append(board)
+
     pagination = {
         'page': page,
         'total_pages': total_pages,
@@ -176,12 +188,17 @@ def board_list():
         'next_num': page + 1
     }
 
-    return render_template('board_list.html',
-                           boards=boards,
-                           pagination=pagination) # 여기서 pagination을 넘겨줍니다!
+    return render_template('board_list.html', boards=boards, pagination=pagination)
 
-@app.route('/board/view/<int:board_id>') # http://localhost:5000/board/view/99(게시물번호)
+
+@app.route('/board/view/<int:board_id>')
 def board_view(board_id):
+    # 1. 조회수 증가 (기존 동일)
+    try:
+        execute_query("UPDATE boards SET visits = visits + 1 WHERE id = %s", (board_id,))
+    except Exception as e: print(e)
+
+    # 2. 게시글 상세 정보 (기존 동일)
     sql = """
         SELECT b.*, m.name as writer_name, m.uid as writer_uid
         FROM boards b
@@ -191,8 +208,45 @@ def board_view(board_id):
     row = fetch_query(sql, (board_id,), one=True)
     if not row:
         return '<script>alert("존재하지 않는 게시글입니다."); history.back();</script>'
+
+    # 3. 좋아요 정보 조회 (기존 동일)
+    like_count = fetch_query("SELECT COUNT(*) as cnt FROM board_likes WHERE board_id = %s", (board_id,), one=True)['cnt']
+    user_liked = False
+    if 'user_id' in session:
+        if fetch_query("SELECT 1 FROM board_likes WHERE board_id = %s AND member_id = %s", (board_id, session['user_id']), one=True):
+            user_liked = True
+
+    # 4. [추가] 댓글 및 대댓글 목록 가져오기
+    # 정렬 핵심: 부모 댓글 id 순서로 묶되, 그 안에서 생성일 순으로 정렬
+    comment_sql = """
+            SELECT c.*, m.name as writer_name, m.uid as writer_uid
+            FROM board_comments c
+            JOIN members m ON c.member_id = m.id
+            WHERE c.board_id = %s
+            ORDER BY c.created_at ASC
+        """
+    all_comments = fetch_query(comment_sql, (board_id,))
+
+    # 2. 계층형 트리 구조로 가공
+    comment_dict = {c['id']: {**c, 'children': []} for c in all_comments}
+    root_comments = []
+
+    for c_id, c_data in comment_dict.items():
+        parent_id = c_data['parent_id']
+        if parent_id and parent_id in comment_dict:
+            # 부모가 있다면 부모의 children 리스트에 추가
+            comment_dict[parent_id]['children'].append(c_data)
+        else:
+            # 부모가 없다면 최상위(Root) 댓글
+            root_comments.append(c_data)
+
     board = Board.from_db(row)
-    return render_template('board_view.html', board=board)
+    board.likes = like_count
+
+    return render_template('board_view.html',
+                           board=board,
+                           user_liked=user_liked,
+                           comments=root_comments)
 
 @app.route('/board/edit/<int:board_id>', methods=['GET', 'POST'])
 def board_edit(board_id):
@@ -233,6 +287,65 @@ def board_delete(board_id):
         return redirect(url_for('board_list'))
     except Exception as e:
         print(e)
+
+@app.route('/board/like/<int:board_id>', methods=['POST'])
+def board_like_toggle(board_id):
+    # 1. 로그인 체크
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+
+    try:
+        # 2. 게시글 존재 확인
+        board = fetch_query("SELECT id FROM boards WHERE id = %s", (board_id,), one=True)
+        if not board:
+            return jsonify({'success': False, 'message': '존재하지 않는 게시글입니다.'}), 404
+
+        # 3. 좋아요 상태 확인
+        check_sql = "SELECT id FROM board_likes WHERE board_id = %s AND member_id = %s"
+        # session['user_id']가 DB의 members.id(PK, 숫자)와 일치하는지 꼭 확인하세요!
+        already_liked = fetch_query(check_sql, (board_id, session['user_id']), one=True)
+
+        if already_liked:
+            execute_query("DELETE FROM board_likes WHERE board_id = %s AND member_id = %s",
+                          (board_id, session['user_id']))
+            is_liked = False
+        else:
+            execute_query("INSERT INTO board_likes (board_id, member_id) VALUES (%s, %s)",
+                          (board_id, session['user_id']))
+            is_liked = True
+
+        # 4. 개수 집계
+        count_res = fetch_query("SELECT COUNT(*) as cnt FROM board_likes WHERE board_id = %s", (board_id,), one=True)
+        like_count = count_res['cnt'] if count_res else 0
+
+        return jsonify({
+            'success': True,
+            'is_liked': is_liked,
+            'like_count': like_count
+        })
+
+    except Exception as e:
+        # 이 부분이 중요합니다! 에러가 나더라도 클라이언트에게 JSON을 돌려줘야 합니다.
+        print(f"Database Error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f"데이터베이스 오류가 발생했습니다: {str(e)}"
+        }), 500
+
+
+@app.route('/board/comment/<int:board_id>', methods=['POST'])
+def add_comment(board_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+
+    data = request.get_json()
+    content = data.get('content')
+    parent_id = data.get('parent_id')  # 대댓글일 경우 부모 ID가 넘어옴
+
+    sql = "INSERT INTO board_comments (board_id, member_id, parent_id, content) VALUES (%s, %s, %s, %s)"
+    execute_query(sql, (board_id, session['user_id'], parent_id, content))
+
+    return jsonify({'success': True})
 
 @app.route('/')
 def index():

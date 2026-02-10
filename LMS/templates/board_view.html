@@ -1,12 +1,11 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-
     <div class="row justify-content-center">
         <div class="col-md-10">
             <h2 class="mb-4">게시글 상세보기</h2>
 
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header bg-dark text-white">
                     <h4 class="mb-0">{{ board.title }}</h4>
                 </div>
@@ -22,21 +21,136 @@
                         </div>
                     </div>
 
-                    <div class="view-content mb-4">
+                    <div class="view-content mb-5" style="min-height: 150px;">
                         {{ board.content }}
                     </div>
 
-                    <div class="text-center">
-                        <a href="/board" class="btn btn-secondary">목록으로</a>
+                    <div class="text-center mb-5">
+                        <button id="like-btn" class="btn btn-outline-danger btn-lg {% if user_liked %}active{% endif %}"
+                                onclick="toggleLike({{ board.id }})">
+                            <span id="like-icon">{% if user_liked %}❤️{% else %}🤍{% endif %}</span>
+                            좋아요 <span id="like-count">{{ board.likes }}</span>
+                        </button>
+                    </div>
 
-                        {# 작성자 본인에게만 보이도록 나중에 세션 처리 예정 #}
+                    <div class="text-center pb-4 border-bottom">
+                        <a href="/board" class="btn btn-secondary">목록으로</a>
+                        {% if session.get('user_id') == board.member_id %}
                         <a href="/board/edit/{{ board.id }}" class="btn btn-warning">수정</a>
                         <a href="/board/delete/{{ board.id }}" class="btn btn-danger"
                            onclick="return confirm('정말 삭제하시겠습니까?')">삭제</a>
+                        {% endif %}
+                    </div>
+
+
+                    <div class="comment-section mt-5">
+                        <h5>댓글 <span class="text-primary">{{ comments|length }}</span></h5>
+
+                        <div class="card my-3">
+                            <div class="card-body">
+                                <div class="input-group">
+                                    <textarea id="comment-content" class="form-control" rows="2" placeholder="댓글을 남겨주세요."></textarea>
+                                    <button class="btn btn-primary" onclick="submitComment(null)">등록</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% macro render_comment(comment_list) %}
+                            {% for c in comment_list %}
+                            <div class="mb-3 {% if c.parent_id %}ms-4 ps-3 border-start{% endif %}" id="comment-{{ c.id }}">
+                                <div class="card border-0">
+                                    <div class="card-body py-1">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>{{ c.writer_name }}</strong>
+                                            <small class="text-muted">{{ c.created_at }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ c.content }}</p>
+                                        <button class="btn btn-sm text-secondary p-0" onclick="toggleReplyForm({{ c.id }})">답글</button>
+
+                                        <div id="reply-form-{{ c.id }}" class="mt-2 d-none">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" id="reply-input-{{ c.id }}" class="form-control" placeholder="답글 입력">
+                                                <button class="btn btn-secondary" onclick="submitComment({{ c.id }})">등록</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {% if c.children %}
+                                    <div class="children-list">
+                                        {{ render_comment(c.children) }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% endmacro %}
+
+                        <div id="comment-list">
+                            {{ render_comment(comments) }}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <script>
+    // 좋아요 기능
+    function toggleLike(boardId) {
+        fetch(`/board/like/${boardId}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const btn = document.getElementById('like-btn');
+                const icon = document.getElementById('like-icon');
+                const count = document.getElementById('like-count');
+                count.innerText = data.like_count;
+                if (data.is_liked) {
+                    icon.innerText = '❤️'; btn.classList.add('active');
+                } else {
+                    icon.innerText = '🤍'; btn.classList.remove('active');
+                }
+            } else {
+                alert(data.message);
+                if (data.message.includes("로그인")) location.href = "/login";
+            }
+        });
+    }
+
+    // 답글창 토글
+    function toggleReplyForm(commentId) {
+        const target = document.getElementById(`reply-form-${commentId}`);
+        target.classList.toggle('d-none');
+    }
+
+    // 댓글 및 대댓글 통합 등록 함수
+    function submitComment(parentId) {
+        const content = parentId
+            ? document.getElementById(`reply-input-${parentId}`).value
+            : document.getElementById('comment-content').value;
+
+        if (!content.trim()) {
+            alert("내용을 입력해주세요.");
+            return;
+        }
+
+        fetch(`/board/comment/{{ board.id }}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: content,
+                parent_id: parentId
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // 성공 시 페이지 새로고침
+            } else {
+                alert(data.message);
+                if (data.message.includes("로그인")) location.href = "/login";
+            }
+        });
+    }
+    </script>
 {% endblock %}

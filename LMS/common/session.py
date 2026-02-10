@@ -10,6 +10,7 @@
 import pymysql
 # pip install pymysql 터미널 설치 필수
 # pip install cryptography mysql 인증문제 해결용
+from .db import CURRENT_DB_CONFIG
 
 class Session:
 
@@ -19,15 +20,7 @@ class Session:
     def get_connection(): # 데이터베이스에 연결용 코드
         print("get_connection()메서드 호출 - mysql에 접속됩니다.")
 
-        return pymysql.connect(
-            host='192.168.0.150',
-            user='mbc320',
-            password='1234',  # 본인의 비밀번호로 변경
-            db='lms',
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
-            # dict 타입으로 처리함 (딕셔너리타입 k : v )
-        )
+        return pymysql.connect(**CURRENT_DB_CONFIG)
 
     @classmethod
     def login(cls, member): #  MemberService에서 로그인시 객체를 담아놈

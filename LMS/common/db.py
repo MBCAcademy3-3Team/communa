@@ -20,11 +20,13 @@ TEACHERS_DB_CONFIG = {
     'cursorclass': pymysql.cursors.DictCursor
 }
 
+CURRENT_DB_CONFIG = DB_CONFIG
+
 # 1. DB 연결 관리 함수 (g 객체 사용)
 def get_db():
     if 'db' not in g:
         # 연결이 없으면 새로 생성하여 g.db에 저장
-        g.db = pymysql.connect(**TEACHERS_DB_CONFIG)
+        g.db = pymysql.connect(**CURRENT_DB_CONFIG)
     return g.db
 
 def execute_query(sql, args=()):
