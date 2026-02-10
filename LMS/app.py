@@ -1,7 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from dotenv import load_dotenv
 import os
 from LMS.common.db import fetch_query, execute_query
 from LMS.common.session import Session
@@ -10,7 +12,6 @@ from math import ceil
 
 app = Flask(__name__)
 
-load_dotenv()
 FLASK_APP_KEY = os.getenv('FLASK_APP_KEY')
 app.secret_key = FLASK_APP_KEY
 
@@ -352,4 +353,4 @@ def index():
     return render_template('main.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=os.getenv('FLASK_APP_PORT'), debug=True)

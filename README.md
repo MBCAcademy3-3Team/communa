@@ -1,2 +1,4 @@
 # flask26
 플라스크 앱개발(회원, 게시판, 성적) LMS
+
+pip install -r requirements.txt
