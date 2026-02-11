@@ -218,7 +218,7 @@ def board_write():
                 is_pinned = 1
 
         conn = Session.get_connection()
-        print("2",is_pinned)
+
         try:
             with conn.cursor() as cursor:
                 # 2. 공지사항(is_pinned=1)인 경우에만 개수 체크
@@ -290,6 +290,8 @@ def board_list():
         #Board 객체에 is_pinned 속성이 없어서 추가
         board.is_pinned = row.get('is_pinned', 0)
         boards.append(board)
+
+    #
 
     pagination = {
         'page': page,

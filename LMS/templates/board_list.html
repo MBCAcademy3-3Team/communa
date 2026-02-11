@@ -120,6 +120,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <!--소현-->
                         {% for board in boards %}
                         <tr class="{{ 'table-primary' if board.is_pinned == 1 else '' }}">
                             <td>
@@ -129,7 +130,12 @@
                                     {{ board.id }}
                                 {% endif %}
                             </td>
-                            <td>{{ board.title }} [{{ board.comment_count }}]</td>
+
+                            <td>
+                                <a href="/board/view/{{ board.id }}" class="text-decoration-none title-link d-inline-block text-truncate align-middle" style="max-width: 350px;">
+                                    {{ board.title }}
+                                </a>
+                               [{{ board.comment_count }}]</td>
                             <td>{{ board.writer_name }}</td>
                             <td class="text-center text-muted small">
                                 {{ board.created_at.strftime('%Y-%m-%d') if board.created_at }}
@@ -143,6 +149,8 @@
                                 </span>
                             </td>
                         </tr>
+                        <!---->
+
                         {% endfor %}
 
                         {% for board in boards %}
