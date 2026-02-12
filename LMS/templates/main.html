@@ -22,8 +22,8 @@
 
             <div class="d-flex flex-wrap gap-2">
                 {% if session.get('user_id') %}
-                    <a href="/board" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #20828A;">
-                        게시판 가기
+                    <a href="/board" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #269CA6;">
+                        게시판
                     </a>
                     <a href="/chat/random" class="btn btn-outline-secondary btn-lg px-4 shadow-sm">
                         랜덤 채팅 시작
@@ -32,7 +32,7 @@
                         💫 나의 운세 확인하기
                     </a>
                 {% else %}
-                    <a href="/login" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #20828A;">
+                    <a href="/login" class="btn btn-primary btn-lg px-4 border-0 shadow-sm" style="background-color: #269CA6;">
                         로그인
                     </a>
                     <a href="/join" class="btn btn-outline-secondary btn-lg px-4 shadow-sm">
@@ -63,7 +63,7 @@
                         나만의 프로필을 관리하고<br>Communa의 정식 회원이 되어보세요.
                     </p>
                     <a href="{% if session.get('user_id') %}/mypage{% else %}/login{% endif %}"
-                       class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
+                       class="btn btn-sm px-3 rounded-pill" style="background-color: #269CA6; color: white;">
                         바로가기
                     </a>
                 </div>
@@ -80,7 +80,7 @@
                     <p class="text-muted small">
                         다양한 주제로 소통하세요.<br>지식 공유와 일상 이야기가 가득합니다.
                     </p>
-                    <a href="/board" class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
+                    <a href="/board" class="btn btn-sm px-3 rounded-pill" style="background-color: #269CA6; color: white;">
                         게시판 이동
                     </a>
                 </div>
@@ -98,7 +98,7 @@
                         익명의 사용자들과<br>실시간으로 즐겁게 대화해 보세요.
                     </p>
                     <a href="{% if session.get('user_id') %}/chat/random{% else %}/login{% endif %}"
-                       class="btn btn-sm px-3 rounded-pill" style="background-color: #20828A; color: white;">
+                       class="btn btn-sm px-3 rounded-pill" style="background-color: #269CA6; color: white;">
                         채팅 시작
                     </a>
                 </div>

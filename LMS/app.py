@@ -2,16 +2,20 @@
 
 from ssl import socket_error
 
-
+import os
 from dotenv import load_dotenv
 from flask import send_from_directory
 from werkzeug.utils import secure_filename
 
+import uuid
 load_dotenv()
-import traceback
 import requests
+import traceback
+from math import ceil
+from functools import wraps
 from bs4 import BeautifulSoup
 from flask_caching import Cache
+<<<<<<< Updated upstream
 from datetime import datetime, timedelta, date
 from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,14 +23,19 @@ from functools import wraps
 import os
 from LMS.common.db import fetch_query, execute_query
 from LMS.common.session import Session
+=======
+>>>>>>> Stashed changes
 from LMS.domain import Board, Score
-from math import ceil
-import uuid
+from LMS.service import PostService
+from LMS.common.session import Session
+from datetime import datetime, timedelta
+from LMS.common.db import fetch_query, execute_query
 from flask_socketio import SocketIO, join_room, leave_room, emit
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
+
 app = Flask(__name__)
 
-# 띠별 운세 확인 시 필요
-# 캐시 설정 (하루 24시간 동안 보관)
 cache = Cache(config={'CACHE_TYPE': 'simple'})
 cache.init_app(app)
 
@@ -341,7 +350,7 @@ def board_write():
         # except Exception as e:
         #     print(e)
 
-
+# 게시물 목록
 @app.route('/board')
 def board_list():
     page = request.args.get('page', 1, type=int)
@@ -399,7 +408,10 @@ def board_list():
 
     return render_template('board_list.html', boards=boards, pagination=pagination)
 
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 # 게시물 자세히 보기
 @app.route('/board/view/<int:board_id>')
 def board_view(board_id):
@@ -586,7 +598,7 @@ def board_like_toggle(board_id):
             'message': f"데이터베이스 오류가 발생했습니다: {str(e)}"
         }), 500
 
-
+# 싫어요
 @app.route('/board/dislike/<int:board_id>', methods=['POST'])
 def board_dislike_toggle(board_id):
     # 1. 로그인 체크
@@ -824,120 +836,71 @@ def score_members():
     finally:
         conn.close()
 
-
 # ----------------------------------------------------------------------------------------------------------------------
 #                                               자료실 (파일 업로드)
 # ----------------------------------------------------------------------------------------------------------------------
 
-# 파일 저장 경로 설정
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# 파일 처리 경로
+UPLOAD_FOLDER = 'uploads/'
+# 폴더 부재 시 자동 생성
+if not os.path.exists(UPLOAD_FOLDER) : # 'import os' 상단에 추가
+    os.makedirs(UPLOAD_FOLDER) # os.makedirs(경로) : 폴더 생성용 코드
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# 최대 용량 제한 (e.g. 16MB)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# 자료실 목록
-@app.route('/library')
-def library_list():
-    if 'user_id' not in session:
-        return "<script>alert('로그인 후 이용 가능합니다.');location.href='/login';</script>"
-
-    # fetch_query를 사용하면 dictionary=True 문제를 피하면서 깔끔하게 데이터를 가져올 수 있습니다.
-    sql = """
-        SELECT l.*, m.name as user_name 
-        FROM library l 
-        JOIN members m ON l.member_id = m.id 
-        ORDER BY l.id DESC
-    """
-    files = fetch_query(sql)  # 프로젝트 공통 함수 활용
-    return render_template('library.html', files=files)
-
-# 파일 업로드
-@app.route('/library/upload', methods=['POST'])
-def library_upload():
-    if 'user_id' not in session:
+# 파일 게시판 - 작성
+@app.route('/filesboard/write', methods = ['GET', 'POST'])
+def filesboard_write() :
+    if 'user_id' not in session :
         return redirect(url_for('login'))
 
-    if 'file' not in request.files:
-        return "<script>alert('파일이 없습니다.');history.back();</script>"
+    if request.method == 'POST' :
 
-    file = request.files['file']
-    if file.filename == '':
-        return "<script>alert('선택된 파일이 없습니다.');history.back();</script>"
+        title = request.form.get('title')
+        content = request.form.get('content')
+        files = request.files.getlist('files') # getlist : 리스트 형태로 가져온다.
 
-    if file:
-        original_name = file.filename
-        ext = os.path.splitext(original_name)[1]
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')  # 밀리초까지 추가하여 중복 방지
-        # 파일명을 유저ID_시간.확장자 형태로 안전하게 생성
-        filename = f"{session['user_id']}_{timestamp}{ext}"
+        if PostService.save_post(session['user_id'], title, content, files) :
+            return "<script>alert('게시물이 등록되었습니다.');location.href='/filesboard';</script>"
 
-        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(save_path)  # 서버 저장
+        else :
+            return "<script>alert('등록 실패');history.back();</script>"
 
-        try:
-            sql = "INSERT INTO library (member_id, filename, original_name) VALUES (%s, %s, %s)"
-            execute_query(sql, (session['user_id'], filename, original_name))
-            return f"<script>alert('업로드 완료!');location.href='/library';</script>"
-        except Exception as e:
-            print(f"DB 저장 에러: {e}")
-            return "<script>alert('DB 저장 실패');history.back();</script>"
+    return render_template('filesboard_write.html')
 
-# 파일 다운로드
-@app.route('/library/download/<int:file_id>')
-def library_download(file_id):
-    # DB에서 파일명 조회
-    sql = "SELECT filename, original_name FROM library WHERE id = %s"
-    file_data = fetch_query(sql, (file_id,), one=True)
+# 파일 게시판 - 목록
+@app.route('/filesboard')
+def filesboard_list() :
+    posts = PostService.get_posts()
+    return render_template('filesboard_list.html', posts=posts)
 
-    if not file_data:
-        return "<script>alert('DB에 파일 정보가 없습니다.');history.back();</script>"
+# 파일 게시판 - 자세히 보기
+@app.route('/filesboard/view/<int:post_id>')
+def filesboard_view(post_id) :
+    post, files = PostService.get_post_detail(post_id)
 
-    filename = file_data['filename']
-    original_name = file_data['original_name']
+    if not post :
+        return "<script>alert('해당 게시글이 없습니다.'); location.href='/filesboard';</script>"
 
-    # 실제 서버 폴더에 파일이 있는지 확인
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    print(f"다운로드 시도 경로: {file_path}")  # 터미널에서 확인용
+    return render_template('filesboard_view.html', post=post, files=files)
 
-    if not os.path.exists(file_path):
-        return f"<script>alert('서버에 실제 파일이 없습니다. (파일명: {filename})');history.back();</script>"
+# 파일 게시판 - 자료 다운로드
+@app.route('/download/<path:filename>')
+def download_file(filename) :
+    # 파일이 저장된 폴더(uploads)에서 파일을 찾아 전송한다.
+    # 프론트 '<a href="{{ url_for('download_file', filename=file.save_name) }}" ...>' 처리용
+    # filename : 서버에 저장된 save_name
+    # 브라우저가 다운로드할 때 보여줄 원본 이름을 쿼리 스트링으로 받거나 DB에서 가져와야 한다.
 
-    return send_from_directory(
-        app.config['UPLOAD_FOLDER'],
-        filename,
-        as_attachment=True,
-        download_name=original_name  # 원래 이름으로 다운로드
-    )
+    origin_name = request.args.get('origin_name')
+    return send_from_directory('uploads/', filename, as_attachment = True, download_name = origin_name)
+    # from flask import send_from_directory 필수
 
-# 파일 삭제
-@app.route('/library/delete/<int:file_id>', methods=['POST'])
-def library_delete(file_id):
-    if 'user_id' not in session:
-        return "<script>alert('로그인이 필요합니다.');history.back();</script>"
-
-    file_info = fetch_query("SELECT filename, member_id FROM library WHERE id = %s", (file_id,), one=True)
-
-    if not file_info:
-        return "<script>alert('파일 정보를 찾을 수 없습니다.');history.back();</script>"
-
-    # 본인 확인
-    if file_info['member_id'] != session['user_id']:
-        return "<script>alert('본인만 삭제 가능합니다.');history.back();</script>"
-
-    try:
-        # 실제 파일 삭제
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_info['filename'])
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
-        # DB 삭제
-        execute_query("DELETE FROM library WHERE id = %s", (file_id,))
-        return "<script>alert('삭제 완료');location.href='/library';</script>"
-    except Exception as e:
-        print(f"삭제 에러: {e}")
-        return "<script>alert('삭제 처리 중 오류 발생');history.back();</script>"
-
+    #   return send_from_directory('uploads/', filename) : 브라우저에서 바로 열어버린다.
+    #   as_attachment=True : 파일 다운로드 창
+    #   저장할 파일명 : download_name=origin_name
 
 # ----------------------------------------------------------------------------------------------------------------------
 #                                         오늘의 운세 / 내일의 운세 (띠별)
@@ -985,7 +948,7 @@ def fortune():
 
     return render_template('fortune.html', data=data)
 
-
+# 네이버 운세
 def crawl_naver_fortune(zodiac_name, is_tomorrow=False):
     target = "내일" if is_tomorrow else "오늘"
     # 네이버 운세 검색 URL (더 정확한 경로로 수정)
@@ -1014,7 +977,7 @@ def crawl_naver_fortune(zodiac_name, is_tomorrow=False):
         print(f"에러 발생: {e}")
         return "네이버 서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요."
 
-
+# 운세 DB
 def get_db_fortune(zodiac_name, target_date):
     conn = None
     try:
@@ -1050,7 +1013,6 @@ def get_db_fortune(zodiac_name, target_date):
         if conn:
             conn.close()
 
-
 # ----------------------------------------------------------------------------------------------------------------------
 #                                                  랜덤 채팅
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1059,12 +1021,12 @@ def get_db_fortune(zodiac_name, target_date):
 socketio = SocketIO(app)
 waiting_users = []
 
-# 랜덤채팅페이지 연결
+# 메인 화면
 @app.route('/chat')
 def chat():
     return render_template("chat.html")
 
-# 채팅 매칭(대기열 중복입장 블록, 매칭)
+# 랜덤 매칭
 @socketio.on("random_match")
 def handle_random_match():
     global waiting_users
@@ -1099,8 +1061,7 @@ def handle_random_match():
 #         waiting_users.append(request.sid)
 #         print("대기열 추가:", request.sid)
 
-
-#  메시지 전송
+# 메시지 전송
 @socketio.on('send_message')
 def handle_send_message(data):
     room = data.get("room")
@@ -1114,7 +1075,7 @@ def handle_send_message(data):
         "message": message
     }, room=room, include_self=False)
 
-#  방 나가기
+# 퇴장 메세지
 @socketio.on("leave_room")
 def handle_leave(data):
     room = data.get("room")
@@ -1125,8 +1086,10 @@ def handle_leave(data):
         "message": "상대방이 나갔습니다."
     }, room=room)
 
+# 대기열 제거
 @socketio.on("disconnect")
 def handle_disconnect():
+
     sid = request.sid
 
     if sid in waiting_users:
@@ -1135,8 +1098,9 @@ def handle_disconnect():
 
 @socketio.on('disconnect')
 def on_disconnect():
+
     user_id = request.sid
-    # 대기 중에 나갔다면 대기열에서 제거
+
     if user_id in waiting_users:
         waiting_users.remove(user_id)
     print(f"접속 종료: {user_id}")
