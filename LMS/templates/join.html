@@ -30,6 +30,26 @@
                             <label for="regName" class="text-muted">실명 입력</label>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">생년월일</label>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <input type="number" id="birth_year" name="birth_year" class="form-control"
+                                           placeholder="YYYY년" required min="1900"
+                                           max="{{ year_now if year_now else 2026 }}">
+                                </div>
+                                <div class="col-4">
+                                    <input type="number" id="birth_month" name="birth_month" class="form-control" placeholder="MM월" required min="1" max="12">
+                                </div>
+                                <div class="col-4">
+                                    <input type="number" id="birth_day" name="birth_day" class="form-control" placeholder="DD일" required min="1" max="31">
+                                </div>
+                            </div>
+                            <div id="age_msg" class="mt-2" style="color: red; font-size: 0.9rem; display: none;">
+                                만 14세 이상만 가입 가능합니다.
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary w-100 py-3 rounded-3 fw-bold shadow-sm border-0"
                                 style="background-color: #20828A;">
                             가입하기
@@ -49,6 +69,68 @@
         </div>
     </div>
 </div>
+
+<script>
+    const yearIn = document.getElementById('birth_year');
+    const monthIn = document.getElementById('birth_month');
+    const dayIn = document.getElementById('birth_day');
+    const ageMsg = document.getElementById('age_msg');
+    const btn = document.getElementById('submitBtn');
+
+    // [추가] 자바스크립트가 실행되는 시점의 현재 연도를 max로 설정
+    const currentYear = new Date().getFullYear();
+    yearIn.max = currentYear;
+
+    function check() {
+        let y = parseInt(yearIn.value);
+        let m = parseInt(monthIn.value);
+        let d = parseInt(dayIn.value);
+
+        // 연도 입력 제한 (미래 연도 입력 방지)
+        if (y > currentYear) { yearIn.value = currentYear; y = currentYear; }
+
+        if (m > 12) { monthIn.value = 12; m = 12; }
+        if (m < 0) { monthIn.value = ''; m = 0; }
+
+        if (d > 31) { dayIn.value = 31; d = 31; }
+        if (d < 0) { dayIn.value = ''; d = 0; }
+
+        if (y && m && d) {
+            const today = new Date();
+            const birth = new Date(y, m - 1, d);
+
+            // 날짜 유효성 체크 (예: 2월 30일 방지)
+            if (birth.getFullYear() !== y || birth.getMonth() !== m - 1 || birth.getDate() !== d) {
+                ageMsg.textContent = "올바른 날짜를 입력해주세요.";
+                ageMsg.style.display = "block";
+                btn.disabled = true;
+                return;
+            }
+
+            // 만 나이 계산
+            let age = today.getFullYear() - birth.getFullYear();
+            const mDiff = today.getMonth() - birth.getMonth();
+            if (mDiff < 0 || (mDiff === 0 && today.getDate() < birth.getDate())) {
+                age--;
+            }
+
+            if (age < 14) {
+                ageMsg.textContent = "만 14세 이상만 가입 가능합니다.";
+                ageMsg.style.display = "block";
+                btn.disabled = true;
+            } else {
+                ageMsg.style.display = "none";
+                btn.disabled = false;
+            }
+        } else {
+            btn.disabled = true;
+        }
+    }
+
+    yearIn.addEventListener('input', check);
+    monthIn.addEventListener('input', check);
+    dayIn.addEventListener('input', check);
+</script>
 
 <style>
     /* 입력창 포커스 효과 통일 */

@@ -12,7 +12,7 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from flask_caching import Cache
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -86,11 +86,35 @@ def join():
     if request.method == 'GET':
         return render_template('join.html')
 
+    if request.method == 'GET':
+        # 현재 연도를 구해서 템플릿으로 전달합니다.
+        today_year = date.today().year
+        return render_template('join.html', year_now=today_year)
+
     uid = request.form.get('uid')
     password = request.form.get('password')
     name = request.form.get('name')
+    #회원가입 시 생년월일 추가(만 14세 이상만 가입 가능)
+    # [추가] 따로 입력받은 년, 월, 일을 가져옴
+    b_year = request.form.get('birth_year')
+    b_month = request.form.get('birth_month')
+    b_day = request.form.get('birth_day')
 
     try:
+        # [추가] 만 나이 계산 및 14세 체크
+        if b_year and b_month and b_day:
+            birth_date = date(int(b_year), int(b_month), int(b_day))
+            today = date.today()
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+            if age < 14:
+                return '<script>alert("만 14세 이상만 가입 가능합니다.");history.back();</script>'
+
+            # DB에 저장할 날짜 형식 (YYYY-MM-DD)
+            birthdate_str = birth_date.strftime('%Y-%m-%d')
+        else:
+            return '<script>alert("생년월일을 모두 입력해주세요.");history.back();</script>'
+
         # 1. 중복 체크 (SELECT)
         exist = fetch_query("SELECT id FROM members WHERE uid = %s", (uid,), one=True)
         if exist:
@@ -99,7 +123,7 @@ def join():
         # 2. 회원 가입 (INSERT - DML)
         # [개선] 복잡한 conn, cursor, commit 코드가 사라지고 함수 호출만 남음
         hashed_pw = password
-        execute_query("INSERT INTO members (uid, password, name) VALUES (%s, %s, %s)", (uid, hashed_pw, name))
+        execute_query("INSERT INTO members (uid, password, name, birthdate) VALUES (%s, %s, %s, %s)", (uid, hashed_pw, name, birthdate_str))
 
         return '<script>alert("가입 완료!"); location.href="/login";</script>'
 
