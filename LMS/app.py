@@ -143,14 +143,31 @@ def member_edit():
 # 마이페이지
 @app.route('/mypage')
 @login_required
+@app.route('/mypage')
 def mypage():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # 1. 유저 정보 가져오기
     user = fetch_query("SELECT * FROM members WHERE id = %s", (session['user_id'],), one=True)
 
-    # COUNT 쿼리도 간단하게 처리 (결과가 없을 수 있으므로 예외처리 살짝 필요하거나 쿼리 수정)
-    board_data = fetch_query("SELECT COUNT(*) as cnt FROM boards WHERE member_id = %s", (session['user_id'],), one=True)
-    board_count = board_data['cnt'] if board_data else 0
+    # 2. [수정] 신고 1개 이상이면 차단된 것으로 간주
+    sql_count = """
+        SELECT 
+            COUNT(*) as total_cnt,
+            COUNT(CASE WHEN (SELECT COUNT(*) FROM reports WHERE board_id = b.id) >= 1 THEN 1 END) as reported_cnt
+        FROM boards b
+        WHERE b.member_id = %s AND b.active = 1
+    """
+    count_data = fetch_query(sql_count, (session['user_id'],), one=True)
 
-    return render_template('mypage.html', user=user, board_count=board_count)
+    board_count = count_data['total_cnt'] if count_data else 0
+    reported_count = count_data['reported_cnt'] if count_data else 0
+
+    return render_template('mypage.html',
+                           user=user,
+                           board_count=board_count,
+                           reported_count=reported_count)
 
 # 마이페이지 - 성적 확인
 @app.route('/score/my')
@@ -309,21 +326,31 @@ def board_list():
     per_page = 10
     offset = (page - 1) * per_page
 
-    # 전체 개수 구하기
-    count_sql = "SELECT COUNT(*) as cnt FROM boards"
-    total_count = fetch_query(count_sql)[0]['cnt']
+    # 1. 권한에 따른 WHERE 절 생성
+    # 관리자는 삭제된 글(active=0)도 보고, 유저는 정상 글(active=1)만 봄
+    if session.get('user_role') == 'admin':
+        where_clause = "WHERE 1=1" # 모든 글 보기
+    else:
+        where_clause = "WHERE b.active = 1" # 정상 글만 보기
+
+    # 2. 전체 개수 구하기 (권한 필터 적용)
+    count_sql = f"SELECT COUNT(*) as cnt FROM boards b {where_clause}"
+    count_res = fetch_query(count_sql, one=True)
+    total_count = count_res['cnt'] if count_res else 0
     total_pages = ceil(total_count / per_page)
 
-    # [수정] 싫어요(dislike_count) 서브쿼리 추가
+    # 3. 메인 쿼리 (좋아요, 싫어요, 댓글수 + [추가] 신고수)
     sql = f"""
         SELECT 
             b.*, 
             m.name as writer_name,
             (SELECT COUNT(*) FROM board_likes WHERE board_id = b.id) as like_count,
             (SELECT COUNT(*) FROM board_dislikes WHERE board_id = b.id) as dislike_count,
-            (SELECT COUNT(*) FROM board_comments WHERE board_id = b.id) as comment_count
+            (SELECT COUNT(*) FROM board_comments WHERE board_id = b.id) as comment_count,
+            (SELECT COUNT(*) FROM reports WHERE board_id = b.id) as report_count
         FROM boards b
         JOIN members m ON b.member_id = m.id
+        {where_clause}
         ORDER BY b.is_pinned DESC, b.id DESC
         LIMIT {per_page} OFFSET {offset}
     """
@@ -333,10 +360,9 @@ def board_list():
     for row in rows:
         board = Board.from_db(row)
         board.like_count = row['like_count']
-        board.dislike_count = row['dislike_count']  # [추가] 싫어요 수 할당
+        board.dislike_count = row['dislike_count']
         board.comment_count = row['comment_count']
-
-        # Board 객체에 is_pinned 속성이 없어서 추가
+        board.report_count = row['report_count'] # [추가] 신고 수 주입
         board.is_pinned = row.get('is_pinned', 0)
         boards.append(board)
 
@@ -350,6 +376,8 @@ def board_list():
     }
 
     return render_template('board_list.html', boards=boards, pagination=pagination)
+
+
 # 게시물 자세히 보기
 @app.route('/board/view/<int:board_id>')
 def board_view(board_id):
@@ -359,9 +387,10 @@ def board_view(board_id):
     except Exception as e:
         print(f"조회수 증가 오류: {e}")
 
-    # 2. 게시글 상세 정보 가져오기
+    # 2. 게시글 상세 정보 가져오기 (신고 수 서브쿼리 추가)
     sql = """
-        SELECT b.*, m.name as writer_name, m.uid as writer_uid
+        SELECT b.*, m.name as writer_name, m.uid as writer_uid,
+               (SELECT COUNT(*) FROM reports WHERE board_id = b.id) as report_count
         FROM boards b
         JOIN members m ON b.member_id = m.id
         WHERE b.id = %s
@@ -370,35 +399,32 @@ def board_view(board_id):
     if not row:
         return '<script>alert("존재하지 않는 게시글입니다."); history.back();</script>'
 
-    # 3. [수정] 좋아요 & 싫어요 정보 조회
-    # 3-1. 전체 카운트 조회
+    # 🚩 [신규 추가] 신고 1개 이상 차단 로직 (관리자는 통과)
+    if row['report_count'] >= 1:
+        if session.get('user_role') != 'admin':
+            return "<script>alert('신고 접수된 게시글임으로 조회가 불가능합니다.'); history.back();</script>"
+
+    # 3. 좋아요 & 싫어요 정보 조회
     like_count = fetch_query("SELECT COUNT(*) as cnt FROM board_likes WHERE board_id = %s", (board_id,), one=True)[
         'cnt']
     dislike_count = \
     fetch_query("SELECT COUNT(*) as cnt FROM board_dislikes WHERE board_id = %s", (board_id,), one=True)['cnt']
 
-    # 3-2. 현재 로그인한 사용자의 클릭 여부 확인
     user_liked = False
     user_disliked = False
 
     if 'user_id' in session:
-        # DB의 member_id(PK)를 정확히 알기 위해 user_id(문자열)로 조회
-        member_info = fetch_query("SELECT id FROM members WHERE id = %s", (session['user_id'],), one=True)
+        # 이미 세션에 member_id(PK)가 저장되어 있다고 가정 (로그인 시 id를 저장했다면)
+        member_pk = session['user_id']
 
-        if member_info:
-            member_pk = member_info['id']
+        if fetch_query("SELECT 1 FROM board_likes WHERE board_id = %s AND member_id = %s", (board_id, member_pk),
+                       one=True):
+            user_liked = True
+        if fetch_query("SELECT 1 FROM board_dislikes WHERE board_id = %s AND member_id = %s", (board_id, member_pk),
+                       one=True):
+            user_disliked = True
 
-            # 좋아요 여부 체크
-            if fetch_query("SELECT 1 FROM board_likes WHERE board_id = %s AND member_id = %s", (board_id, member_pk),
-                           one=True):
-                user_liked = True
-
-            # 싫어요 여부 체크 (추가됨)
-            if fetch_query("SELECT 1 FROM board_dislikes WHERE board_id = %s AND member_id = %s", (board_id, member_pk),
-                           one=True):
-                user_disliked = True
-
-    # 4. 댓글 및 대댓글 목록 가져오기 (계층형 구조)
+    # 4. 댓글 및 대댓글 목록 가져오기 (기존 팀원 코드 유지)
     comment_sql = """
             SELECT c.*, m.name as writer_name, m.uid as writer_uid
             FROM board_comments c
@@ -408,28 +434,26 @@ def board_view(board_id):
         """
     all_comments = fetch_query(comment_sql, (board_id,))
 
-    # 딕셔너리를 활용해 트리 구조로 변환
     comment_dict = {c['id']: {**c, 'children': []} for c in all_comments}
     root_comments = []
 
     for c_id, c_data in comment_dict.items():
         parent_id = c_data['parent_id']
         if parent_id and parent_id in comment_dict:
-            # 부모가 있다면 부모의 children 리스트에 추가
             comment_dict[parent_id]['children'].append(c_data)
         else:
-            # 부모가 없다면 최상위(Root) 댓글
             root_comments.append(c_data)
 
     # 5. Board 객체 생성 및 데이터 주입
     board = Board.from_db(row)
-    board.likes = like_count  # 좋아요 수 주입
-    board.dislikes = dislike_count  # [추가] 싫어요 수 주입 (Board 클래스에 필드가 없어도 파이썬이라 들어갑니다)
+    board.likes = like_count
+    board.dislikes = dislike_count
+    board.report_count = row['report_count']  # 혹시 화면에 신고수 띄울까봐 추가
 
     return render_template('board_view.html',
                            board=board,
                            user_liked=user_liked,
-                           user_disliked=user_disliked,  # [추가] 템플릿으로 전달
+                           user_disliked=user_disliked,
                            comments=root_comments)
 
 # 게시물 수정
@@ -457,21 +481,43 @@ def board_edit(board_id):
             print(e)
     return None
 
-# 게시물 삭제
+
+# 게시물 삭제 (관리자 영구삭제 vs 유저 소프트삭제)
 @app.route('/board/delete/<int:board_id>')
 def board_delete(board_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # 1. 게시글 존재 여부 및 정보 확인
     board_sql = 'SELECT * FROM boards WHERE id = %s'
     row = fetch_query(board_sql, (board_id,), one=True)
+
     if not row:
         return '<script>alert("존재하지 않는 게시글입니다."); history.back();</script>'
-    if row['member_id'] != session.get('user_id'):
-        return '<script>alert("삭제할 권한이 없습니다."); history.back();</script>'
+
     try:
-        sql = "DELETE FROM boards WHERE id = %s"
-        execute_query(sql, (board_id,))
-        return redirect(url_for('board_list'))
+        # 2. 관리자(admin)인 경우: DB에서 아예 행을 삭제 (Hard Delete)
+        if session.get('user_role') == 'admin':
+            sql = "DELETE FROM boards WHERE id = %s"
+            execute_query(sql, (board_id,))
+            msg = "관리자 권한으로 게시글을 영구 삭제했습니다."
+
+        # 3. 일반 유저인 경우: 본인 글일 때만 active를 0으로 수정 (Soft Delete)
+        else:
+            # 본인 글인지 먼저 체크
+            if row['member_id'] != session.get('user_id'):
+                return '<script>alert("삭제할 권한이 없습니다."); history.back();</script>'
+
+            # active 상태만 0으로 바꿔서 목록에서 숨김
+            sql = "UPDATE boards SET active = 0 WHERE id = %s AND member_id = %s"
+            execute_query(sql, (board_id, session['user_id']))
+            msg = "게시글이 삭제되었습니다."
+
+        return f"<script>alert('{msg}'); location.href='/board';</script>"
+
     except Exception as e:
-        print(e)
+        print(f'삭제 에러: {e}')
+        return "<script>alert('처리 중 오류가 발생했습니다.'); history.back();</script>"
 
 # 좋아요
 @app.route('/board/like/<int:board_id>', methods=['POST'])
@@ -581,6 +627,60 @@ def add_comment(board_id):
     execute_query(sql, (board_id, session['user_id'], parent_id, content))
 
     return jsonify({'success': True})
+
+
+# 게시물 신고 기능
+@app.route('/board/report/<int:board_id>', methods=['POST'])
+def board_report(board_id):
+    # 1. 로그인 체크
+    if 'user_id' not in session:
+        return "<script>alert('로그인 후 신고가 가능합니다.'); history.back();</script>"
+
+    reason = request.form.get('reason')  # 사용자가 선택한 신고 사유 (HTML에서 받아옴)
+    reporter_id = session['user_id']
+
+    try:
+        # 2. 본인 게시글 신고 방지 (팀 프로젝트의 핵심 디테일!)
+        board = fetch_query("SELECT member_id FROM boards WHERE id = %s", (board_id,), one=True)
+        if board and board['member_id'] == reporter_id:
+            return "<script>alert('본인 게시글은 신고할 수 없습니다.'); history.back();</script>"
+
+        # 3. 중복 신고 체크 (fetch_query 활용)
+        check_sql = "SELECT id FROM reports WHERE board_id = %s AND reporter_id = %s"
+        already_reported = fetch_query(check_sql, (board_id, reporter_id), one=True)
+
+        if already_reported:
+            return "<script>alert('이미 신고한 게시글입니다.'); history.back();</script>"
+
+        # 4. 신고 데이터 삽입 (execute_query 활용)
+        insert_sql = "INSERT INTO reports (board_id, reporter_id, reason) VALUES (%s, %s, %s)"
+        execute_query(insert_sql, (board_id, reporter_id, reason))
+
+        return "<script>alert('신고가 접수되었습니다. 감사합니다.'); location.href='/board';</script>"
+
+    except Exception as e:
+        print(f"신고 처리 에러: {e}")
+        return "<script>alert('신고 처리 중 오류가 발생했습니다.'); history.back();</script>"
+
+
+# 관리자 전용: 신고 내역 초기화 (게시글 복구)
+@app.route('/admin/clear_reports/<int:board_id>')
+def clear_reports(board_id):
+    # 1. 권한 체크 (세션의 role이 admin인지 확인)
+    if session.get('user_role') != 'admin':
+        return "<script>alert('관리자만 접근 가능합니다.'); history.back();</script>"
+
+    try:
+        # 2. execute_query를 사용하여 해당 게시글의 모든 신고 삭제
+        # 신고가 삭제되면 report_count가 0이 되어 다시 일반 유저에게 노출됩니다.
+        sql = "DELETE FROM reports WHERE board_id = %s"
+        execute_query(sql, (board_id,))
+
+        return "<script>alert('신고가 초기화되었습니다. 게시글이 다시 공개됩니다.'); location.href='/board';</script>"
+
+    except Exception as e:
+        print(f"신고 초기화 에러: {e}")
+        return f"<script>alert('처리 중 오류가 발생했습니다.'); history.back();</script>"
 
 # ----------------------------------------------------------------------------------------------------------------------
 #                                                 성적 CRUD

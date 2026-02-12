@@ -93,17 +93,17 @@
         margin-left: 4px;
     }
 
-    /* 좋아요 배지 (Red) */
-    .like-badge {
-        font-size: 0.8rem;
-        color: #e03131;
-        background-color: #fff5f5;
-        padding: 4px 10px;
-        border-radius: 20px;
-        border: 1px solid #ffc9c9;
-        display: inline-block;
-        min-width: 60px;
-    }
+        /* 좋아요 배지 (Red) */
+        .like-badge {
+            font-size: 0.8rem;
+            color: #e03131;
+            background-color: #fff5f5;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid #ffc9c9;
+            display: inline-block;
+            min-width: 60px;
+        }
 
     /* [추가] 싫어요 배지 (Gray) */
     .dislike-badge {
@@ -152,6 +152,30 @@
         font-size: 0.75rem;
         padding: 3px 6px;
     }
+
+    /*  신고 배지 스타일  */
+.report-badge-custom {
+    font-size: 0.75rem;
+    color: #c92a2a;
+    background-color: #fff5f5;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid #ffc9c9;
+    font-weight: 600;
+    margin-right: 5px;
+}
+
+/*  삭제됨 배지 스타일  */
+.delete-badge-custom {
+    font-size: 0.75rem;
+    color: #495057;
+    background-color: #f1f3f5;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    font-weight: 600;
+    margin-right: 5px;
+}
 </style>
 
 <div class="row justify-content-center py-5">
@@ -162,7 +186,8 @@
                 <h2 class="fw-bold text-dark mb-1">자유 게시판</h2>
                 <p class="text-muted mb-0">Communa 식구들의 다양한 이야기를 나누는 공간입니다.</p>
             </div>
-            <a href="/board/write" class="btn text-white px-4 py-2 rounded-pill shadow-sm hover-effect" style="background-color: var(--communa-teal); transition: 0.3s;">
+            <a href="/board/write" class="btn text-white px-4 py-2 rounded-pill shadow-sm hover-effect"
+               style="background-color: var(--communa-teal); transition: 0.3s;">
                 <i class="bi bi-pencil-square me-1"></i> 새 글 쓰기
             </a>
         </div>
@@ -181,108 +206,122 @@
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead>
-                        <tr>
-                            <th class="text-center" style="width: 8%;">번호</th>
-                            <th style="width: 42%;">제목</th>
-                            <th class="text-center" style="width: 12%;">작성자</th>
-                            <th class="text-center" style="width: 12%;">날짜</th>
-                            <th class="text-center" style="width: 8%;">조회</th>
-                            <th class="text-center" style="width: 9%;">좋아요</th>
-                            <th class="text-center" style="width: 9%;">싫어요</th>
-                        </tr>
+                    <tr>
+                        <th class="text-center" style="width: 8%;">번호</th>
+                        <th style="width: 42%;">제목</th>
+                        <th class="text-center" style="width: 12%;">작성자</th>
+                        <th class="text-center" style="width: 12%;">날짜</th>
+                        <th class="text-center" style="width: 8%;">조회</th>
+                        <th class="text-center" style="width: 9%;">좋아요</th>
+                        <th class="text-center" style="width: 9%;">싫어요</th>
+                    </tr>
                     </thead>
-                    <tbody>
-                        {% for board in boards %}
-                        <tr class="{{ 'notice-row' if board.is_pinned == 1 else '' }}" onclick="location.href='/board/view/{{ board.id }}'">
+                <tbody>
+                    {% for board in boards %}
+                        {# 1. 루프 안에서 조건을 체크하므로 한 칸 더 들여쓰기 #}
+                        {% if board.active == 1 or session['user_role'] == 'admin' %}
+                            <tr class="{{ 'notice-row' if board.is_pinned == 1 else '' }}" onclick="location.href='/board/view/{{ board.id }}'">
 
-                            <td class="text-center">
-                                {% if board.is_pinned == 1 %}
-                                    <span class="badge badge-notice">공지</span>
-                                {% else %}
-                                    <span class="text-muted small">{{ board.id }}</span>
-                                {% endif %}
-                            </td>
-
-                            <td>
-                                <div class="d-flex align-items-center">
+                                <td class="text-center">
                                     {% if board.is_pinned == 1 %}
-                                        <i class="bi bi-megaphone-fill me-2 text-danger small"></i>
+                                        <span class="badge badge-notice">공지</span>
+                                    {% else %}
+                                        <span class="text-muted small">{{ board.id }}</span>
                                     {% endif %}
+                                </td>
 
-                                    <a href="/board/view/{{ board.id }}" class="title-link d-inline-block text-truncate {{ 'fw-bold' if board.is_pinned == 1 else '' }}" style="max-width: 380px;">
-                                        {% if board.like_count >= 2 %}
-                                            <span class="badge badge-hot">HOT</span>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if board.is_pinned == 1 %}
+                                            <i class="bi bi-megaphone-fill me-2 text-danger small"></i>
                                         {% endif %}
-                                        {{ board.title }}
-                                    </a>
 
-                                    {% if board.comment_count > 0 %}
-                                        <span class="comment-count">[{{ board.comment_count }}]</span>
-                                    {% endif %}
-                                </div>
-                            </td>
+                                        <a href="/board/view/{{ board.id }}"
+                                           class="title-link d-inline-block text-truncate {{ 'fw-bold' if board.is_pinned == 1 else '' }} {{ 'text-muted' if board.active == 0 else '' }}"
+                                           style="max-width: 380px;">
 
-                            <td class="text-center">
-                                <span class="small fw-medium text-dark">{{ board.writer_name }}</span>
-                            </td>
+                                            {% if board.like_count >= 2 %}
+                                                <span class="badge badge-hot">HOT</span>
+                                            {% endif %}
 
-                            <td class="text-center text-muted small">
-                                {{ board.created_at.strftime('%Y-%m-%d') if board.created_at }}
-                            </td>
+                                            {% if board.active == 0 %}
+                                                <span class="badge rounded-pill bg-secondary me-1" style="font-size: 0.65rem;">삭제됨</span>
+                                            {% endif %}
 
-                            <td class="text-center small">
-                                <span class="text-secondary">{{ board.visits }}</span>
-                            </td>
+                                            {% if board.report_count >= 1 %}
+                                                <span class="badge rounded-pill bg-danger me-1" style="font-size: 0.65rem;">신고</span>
+                                            {% endif %}
 
-                            <td class="text-center">
-                                <span class="like-badge">
-                                    ❤️ {{ board.like_count }}
-                                </span>
-                            </td>
+                                            {{ board.title }}
+                                        </a>
 
-                            <td class="text-center">
-                                <span class="dislike-badge">
-                                    👎 {{ board.dislike_count }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
+                                        {% if board.comment_count > 0 %}
+                                            <span class="comment-count">[{{ board.comment_count }}]</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
 
-                        {% if not boards %}
+                                <td class="text-center">
+                                    <span class="small fw-medium text-dark">{{ board.writer_name }}</span>
+                                </td>
+
+                                <td class="text-center text-muted small">
+                                    {{ board.created_at.strftime('%Y-%m-%d') if board.created_at }}
+                                </td>
+
+                                <td class="text-center small">
+                                    <span class="text-secondary">{{ board.visits }}</span>
+                                </td>
+
+                                <td class="text-center">
+                                    <span class="like-badge">❤️ {{ board.like_count }}</span>
+                                </td>
+
+                                <td class="text-center">
+                                    <span class="dislike-badge">👎 {{ board.dislike_count }}</span>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if not boards %}
                         <tr>
                             <td colspan="7" class="text-center py-5 text-muted">
                                 아직 등록된 게시글이 없습니다. 첫 번째 글을 작성해보세요! 📝
                             </td>
                         </tr>
-                        {% endif %}
-
-                    </tbody>
+                    {% endif %}
+                </tbody>
                 </table>
             </div>
 
             <nav aria-label="Page navigation" class="mt-5">
-              <ul class="pagination justify-content-center">
-                {# 1. 이전 버튼 #}
-                <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-                  <a class="page-link shadow-sm" href="{{ url_for('board_list', page=pagination.prev_num) if pagination.has_prev else '#' }}" aria-label="Previous">
-                    <span aria-hidden="true">&laquo;</span>
-                  </a>
-                </li>
+                <ul class="pagination justify-content-center">
+                    {# 1. 이전 버튼 #}
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link shadow-sm"
+                           href="{{ url_for('board_list', page=pagination.prev_num) if pagination.has_prev else '#' }}"
+                           aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
 
-                {# 2. 페이지 번호 #}
-                {% for p in range(1, pagination.total_pages + 1) %}
-                  <li class="page-item {{ 'active' if p == pagination.page }}">
-                    <a class="page-link shadow-sm" href="{{ url_for('board_list', page=p) }}">{{ p }}</a>
-                  </li>
-                {% endfor %}
+                    {# 2. 페이지 번호 #}
+                    {% for p in range(1, pagination.total_pages + 1) %}
+                    <li class="page-item {{ 'active' if p == pagination.page }}">
+                        <a class="page-link shadow-sm" href="{{ url_for('board_list', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% endfor %}
 
-                {# 3. 다음 버튼 #}
-                <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-                  <a class="page-link shadow-sm" href="{{ url_for('board_list', page=pagination.next_num) if pagination.has_next else '#' }}" aria-label="Next">
-                    <span aria-hidden="true">&raquo;</span>
-                  </a>
-                </li>
-              </ul>
+                    {# 3. 다음 버튼 #}
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link shadow-sm"
+                           href="{{ url_for('board_list', page=pagination.next_num) if pagination.has_next else '#' }}"
+                           aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
             </nav>
 
         </div>
