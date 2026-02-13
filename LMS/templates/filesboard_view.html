@@ -24,7 +24,7 @@
                 {% for file in files %}
                 <div class="d-flex align-items-center justify-content-between bg-white p-2 mb-1 border rounded">
                     <span>{{ file.origin_name }}</span>
-                    <a href="{{ url_for('download_file', filename=file.save_name, origin_name=file.origin_name) }}"
+                    <a href="{{ url_for('download_file', attachment_id=file.id) }}"
                         class="btn btn-sm btn-outline-primary">다운로드</a>
                 </div>
                 {% endfor %}

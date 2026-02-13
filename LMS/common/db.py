@@ -90,12 +90,14 @@ def execute_query(sql, args=()):
     conn = get_db()
     try:
         with conn.cursor() as cursor:
-            rowcount = cursor.execute(sql, args)
+            cursor.execute(sql, args)
             conn.commit()
-            return True
+            if cursor.lastrowid:
+                return cursor.lastrowid
+            return cursor.rowcount
     except Exception as e:
         conn.rollback() # 에러 나면 되돌리기
-        return False
+        return None
 
 def fetch_query(sql, args=(), one=False):
     """

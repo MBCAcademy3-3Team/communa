@@ -1,3 +1,4 @@
+import urllib
 from ssl import socket_error
 
 import os
@@ -27,7 +28,10 @@ from datetime import datetime, timedelta
 from LMS.common.db import fetch_query, execute_query
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify, send_file
+import requests
+from io import BytesIO
+
 
 app = Flask(__name__)
 
@@ -875,20 +879,56 @@ def filesboard_view(post_id) :
     return render_template('filesboard_view.html', post=post, files=files)
 
 # 파일 게시판 - 자료 다운로드
-@app.route('/download/<path:filename>')
-def download_file(filename) :
-    # 파일이 저장된 폴더(uploads)에서 파일을 찾아 전송한다.
-    # 프론트 '<a href="{{ url_for('download_file', filename=file.save_name) }}" ...>' 처리용
-    # filename : 서버에 저장된 save_name
-    # 브라우저가 다운로드할 때 보여줄 원본 이름을 쿼리 스트링으로 받거나 DB에서 가져와야 한다.
+@app.route('/download/<int:attachment_id>')
+def download_file(attachment_id):
+    # 1. DB에서 파일 정보 조회
+    sql = "SELECT * FROM attachments WHERE id = %s"
+    file_data = fetch_query(sql, (attachment_id,), one=True)
 
-    origin_name = request.args.get('origin_name')
-    return send_from_directory('uploads/', filename, as_attachment = True, download_name = origin_name)
-    # from flask import send_from_directory 필수
+    if not file_data:
+        return "<script>alert('파일을 찾을 수 없습니다.'); history.back();</script>"
 
-    #   return send_from_directory('uploads/', filename) : 브라우저에서 바로 열어버린다.
-    #   as_attachment=True : 파일 다운로드 창
-    #   저장할 파일명 : download_name=origin_name
+    save_name = file_data['save_name']  # URL (https://...)
+    origin_name = file_data['origin_name']  # 원본 파일명 (예: 중간고사_결과.xlsx)
+
+    # ---------------------------------------------------------
+    # CASE A: Cloudinary 파일인 경우 (URL 형태)
+    # ---------------------------------------------------------
+    if "cloudinary.com" in save_name:
+        try:
+            # [핵심] Flask 서버가 Cloudinary에서 파일을 대신 받아옵니다.
+            # stream=True는 파일이 클 경우 메모리를 아끼기 위함입니다.
+            file_res = requests.get(save_name, stream=True)
+
+            # 받아온 데이터를 메모리상의 파일 객체(BytesIO)로 변환합니다.
+            file_binary = BytesIO(file_res.content)
+
+            # send_file을 쓰면 Flask가 이름을 마음대로 지정해서 보낼 수 있습니다!
+            return send_file(
+                file_binary,
+                download_name=origin_name,  # ⭐ 여기서 원본 이름 강제 적용!
+                as_attachment=True,
+                mimetype=file_res.headers.get('Content-Type')  # 원본 파일 타입 유지
+            )
+
+        except Exception as e:
+            print(f"다운로드 오류: {e}")
+            return "<script>alert('클라우드 파일 다운로드 중 오류가 발생했습니다.'); history.back();</script>"
+
+    # ---------------------------------------------------------
+    # CASE B: 로컬 파일인 경우 (내 컴퓨터 uploads 폴더)
+    # ---------------------------------------------------------
+    else:
+        uploads_folder = os.path.join(app.root_path, 'uploads')
+        try:
+            return send_from_directory(
+                uploads_folder,
+                save_name,
+                as_attachment=True,
+                download_name=origin_name
+            )
+        except FileNotFoundError:
+            return "<script>alert('서버에서 파일을 찾을 수 없습니다.'); history.back();</script>"
 
 # 파일 게시판 - 삭제
 @app.route('/filesboard/delete/<int:post_id>')
@@ -909,11 +949,10 @@ def filesboard_delete(post_id) :
     if post['member_id'] != session['user_id'] and session.get('user_role') != 'admin' :
         return "<script>alert('삭제 권한이 없습니다.'); history.back();</script>"
 
-    if PostService.delete_post(post_id):
-        return "<script>alert('성공적으로 삭제되었습니다.'); location.href='/filesboard';</script>"
-    else :
-        return "<script>alert('삭제 중 오류가 발생했습니다.'); history.back();</script>"
+    PostService.delete_post(post_id)
+    return "<script>alert('성공적으로 삭제되었습니다.'); location.href='/filesboard';</script>"
 
+# 파일 게시판수정
 @app.route('/filesboard/edit/<int:post_id>', methods=['GET', 'POST'])
 def filesboard_edit(post_id) :
 
