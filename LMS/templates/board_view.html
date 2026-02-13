@@ -179,8 +179,11 @@
 
                 {% if session.get('user_id') == board.member_id %}
                 <a href="/board/edit/{{ board.id }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">수정</a>
+                {% endif %}
+
+                {% if session.get('user_id') == board.member_id or session.get('user_role') == 'admin' %}
                 <a href="/board/delete/{{ board.id }}" class="btn btn-sm btn-outline-danger rounded-pill px-3 ms-1"
-                   onclick="return confirm('정말 삭제하시겠습니까?')">삭제</a>
+                   onclick="return confirm('{% if session.get('user_role') == 'admin' %}관리자 권한으로 영구 삭제하시겠습니까?{% else %}정말 삭제하시겠습니까?{% endif %}')">삭제</a>
                 {% endif %}
 
                 {% if session.get('user_id') and session.get('user_id') != board.member_id %}
