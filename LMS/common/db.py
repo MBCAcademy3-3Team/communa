@@ -96,18 +96,14 @@ def execute_query(sql, args=()):
         conn.rollback() # 에러 나면 되돌리기
         raise e # 에러를 호출한 곳으로 다시 던져서 알림
 
-import traceback
-
 def fetch_query(sql, args=(), one=False):
-    conn = None # finally에서 참조하기 위해 미리 선언
-    try:
-        conn = get_db()  # g에서 연결을 가져옴
-        with conn.cursor() as cursor:
-            cursor.execute(sql, args)
-            if one:
-                return cursor.fetchone()
-            return cursor.fetchall()
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return None if one else []
+    """
+    SELECT 쿼리 실행 전용
+    one=True이면 fetchone(), False이면 fetchall()
+    """
+    conn = get_db()
+    with conn.cursor() as cursor:
+        cursor.execute(sql, args)
+        if one:
+            return cursor.fetchone()
+        return cursor.fetchall()
