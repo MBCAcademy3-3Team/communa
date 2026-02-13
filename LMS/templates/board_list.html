@@ -302,30 +302,37 @@
 
             <nav aria-label="Page navigation" class="mt-5">
                 <ul class="pagination justify-content-center">
-                    {# 1. 이전 버튼 #}
-                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-                        <a class="page-link shadow-sm"
-                           href="{{ url_for('board_list', page=pagination.prev_num) if pagination.has_prev else '#' }}"
-                           aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
-                        </a>
-                    </li>
+                    {# pagination이 존재할 때만 아래 로직을 실행합니다 #}
+                    {% if pagination %}
 
-                    {# 2. 페이지 번호 #}
-                    {% for p in range(1, pagination.total_pages + 1) %}
-                    <li class="page-item {{ 'active' if p == pagination.page }}">
-                        <a class="page-link shadow-sm" href="{{ url_for('board_list', page=p) }}">{{ p }}</a>
-                    </li>
-                    {% endfor %}
+                        {# 1. 이전 버튼 #}
+                        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                            <a class="page-link shadow-sm"
+                               href="{{ url_for('board_list', page=pagination.prev_num) if pagination.has_prev else '#' }}"
+                               aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
 
-                    {# 3. 다음 버튼 #}
-                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-                        <a class="page-link shadow-sm"
-                           href="{{ url_for('board_list', page=pagination.next_num) if pagination.has_next else '#' }}"
-                           aria-label="Next">
-                            <span aria-hidden="true">&raquo;</span>
-                        </a>
-                    </li>
+                        {# 2. 페이지 번호: pagination이 None이면 이 반복문이 실행되지 않아야 합니다 #}
+                        {% for p in range(1, pagination.total_pages + 1) %}
+                        <li class="page-item {{ 'active' if p == pagination.page }}">
+                            <a class="page-link shadow-sm" href="{{ url_for('board_list', page=p) }}">{{ p }}</a>
+                        </li>
+                        {% endfor %}
+
+                        {# 3. 다음 버튼 #}
+                        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                            <a class="page-link shadow-sm"
+                               href="{{ url_for('board_list', page=pagination.next_num) if pagination.has_next else '#' }}"
+                               aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+
+                    {% else %}
+                        {# 마이페이지처럼 pagination이 없을 때 보여줄 디자인 (선택사항) #}
+                        {% endif %}
                 </ul>
             </nav>
 

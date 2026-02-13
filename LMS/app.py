@@ -1,7 +1,6 @@
 import urllib
 from ssl import socket_error
 
-import os
 from dotenv import load_dotenv
 from flask import send_from_directory
 from werkzeug.utils import secure_filename
@@ -15,7 +14,7 @@ from math import ceil
 from functools import wraps
 from bs4 import BeautifulSoup
 from flask_caching import Cache
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from flask import Flask, render_template, request, redirect, url_for, session, g, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -42,6 +41,16 @@ cache.init_app(app)
 
 FLASK_APP_KEY = os.getenv('FLASK_APP_KEY')
 app.secret_key = FLASK_APP_KEY
+
+# 마이페이지 中 프로필 설정 경로
+# 1. 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# 2. 폴더가 없는 경우
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.teardown_appcontext
 def close_db(e=None):
@@ -180,10 +189,10 @@ def mypage():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # 1. 유저 정보 가져오기
+    # 1. 유저 정보 가져오기 (이때 profile_img 컬럼 데이터가 포함되어야 합니다)
     user = fetch_query("SELECT * FROM members WHERE id = %s", (session['user_id'],), one=True)
 
-    # 2. [수정] 신고 1개 이상이면 차단된 것으로 간주
+    # 2. 활동 요약 정보
     sql_count = """
         SELECT 
             COUNT(*) as total_cnt,
@@ -196,6 +205,7 @@ def mypage():
     board_count = count_data['total_cnt'] if count_data else 0
     reported_count = count_data['reported_cnt'] if count_data else 0
 
+    # 3. render_template 시 user 객체를 통째로 넘기면 user.profile_img를 HTML에서 쓸 수 있습니다.
     return render_template('mypage.html',
                            user=user,
                            board_count=board_count,
@@ -220,7 +230,6 @@ def score_my():
         conn.close()
 
 # 마이페이지 - 프로필 사진
-@app.route('/profile/upload', methods=['POST'])
 def profile_upload():
     if 'user_id' not in session:
         return redirect(url_for('login'))
@@ -233,28 +242,30 @@ def profile_upload():
         return "<script>alert('선택된 파일이 없습니다.');history.back();</script>"
 
     if file:
-        # 확장자 체크 및 파일명 생성 (유저 고유 ID 사용)
-        ext = os.path.splitext(file.filename)[1].lower()
-        if ext not in ['.jpg', '.jpeg', '.png', '.gif']:
-            return "<script>alert('이미지 파일만 업로드 가능합니다.');history.back();</script>"
-
-        # 파일명: profile_유저ID.png (기존 사진 덮어쓰기 위해 고정)
-        filename = f"profile_{session['user_id']}{ext}"
-        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-        file.save(save_path)
-
-        # DB의 members 테이블에 프로필 이미지 파일명 저장 (이미 컬럼이 있다면)
         try:
+            # [2] 파일명 생성: uuid를 사용해 datetime.time 관련 AttributeError를 방지합니다.
+            ext = os.path.splitext(file.filename)[1].lower()
+            new_filename = f"profile_{session['user_id']}_{uuid.uuid4().hex[:8]}{ext}"
+
+            # [3] 저장 경로: 반드시 app.config['UPLOAD_FOLDER']를 사용하여 static 안에 넣습니다.
+            # 이 코드가 있어야 LMS/uploads가 생기지 않고 static/uploads에 저장됩니다.
+            full_save_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(full_save_path)
+
+            # [4] DB 업데이트
             sql = "UPDATE members SET profile_img = %s WHERE id = %s"
-            execute_query(sql, (filename, session['user_id']))
+            execute_query(sql, (new_filename, session['user_id']))
+
             return "<script>alert('프로필 사진이 변경되었습니다.');location.href='/mypage';</script>"
+
         except Exception as e:
-            print(f"프로필 DB 업데이트 에러: {e}")
-            return "<script>alert('DB 업데이트 중 오류 발생');history.back();</script>"
+            # 어떤 에러인지 정확히 알기 위해 f-string 사용
+            return f"<script>alert('오류 발생: {str(e)}');history.back();</script>"
+
+    return "<script>alert('업로드 실패');history.back();</script>"
 
 # 마이페이지 - 작성한 게시물 조회
-@app.route('/board/my')  # http://localhost:5000/board/my
+@app.route('/board/my')
 def my_board_list() :
     if 'user_id' not in session :
         return redirect(url_for('login'))
@@ -264,23 +275,46 @@ def my_board_list() :
     try :
         with conn.cursor() as cursor :
 
-            # 내가 쓴 글만 조회 (작성자 이름 포함)
+            # board_likes 테이블의 데이터를 참조하여 JOIN 쿼리 작성
+            # COUNT(bl.id)를 통해 게시물별 좋아요 개수를 가져옵니다.
             sql = """
-                  SELECT b.*, m.name as writer_name
+                  SELECT 
+                      b.*, 
+                      m.name as writer_name,
+                      COUNT(bl.id) as like_count
                   FROM boards b
                   JOIN members m ON b.member_id = m.id
+                  LEFT JOIN board_likes bl ON b.id = bl.board_id
                   WHERE b.member_id = %s
+                  GROUP BY b.id, m.name
                   ORDER BY b.id DESC
                   """
             cursor.execute(sql, (session['user_id'],))
             rows = cursor.fetchall()
 
-            # 기존 Board 도메인 객체 활용
-            boards = [Board.from_db(row) for row in rows]
+            boards = []
 
-            # 기존 board_list.html을 재사용하거나 전용 페이지를 만듭니다.
-            # 여기서는 '내 글 관리'라는 느낌을 주도록 새로운 제목과 함께 보냅니다.
-            return render_template('board_list.html', boards=boards, list_title="내가 작성한 게시물")
+            for row in rows :
+                board = Board.from_db(row)
+
+                # 1. 쿼리 결과에서 가져온 like_count를 객체에 주입 (UndefinedError 방지)
+                board.like_count = row.get('like_count', 0)
+
+                # 2. 아직 존재 여부가 불확실한 속성들은 기본값 0으로 설정
+                # (이렇게 하면 board_list.html에서 오류가 발생하지 않습니다)
+                if not hasattr(board, 'dislike_count') :
+                    board.dislike_count = 0
+
+                if not hasattr(board, 'comment_count') :
+                    board.comment_count = 0
+
+                boards.append(board)
+
+            # pagination=None을 넘겨주어 템플릿의 페이지네이션 에러를 방지합니다.
+            return render_template('board_list.html',
+                                   boards=boards,
+                                   list_title="내가 작성한 게시물",
+                                   pagination=None)
 
     finally :
         conn.close()
