@@ -835,8 +835,9 @@ def score_members():
 # ----------------------------------------------------------------------------------------------------------------------
 
 # 파일 처리 경로
+UPLOAD_FOLDER = ''
 if not bool(os.getenv("FLASK_DEBUG", 1)):
-    UPLOAD_FOLDER = '/tmp/'
+    UPLOAD_FOLDER = '/tmp'
 else:
     UPLOAD_FOLDER = 'uploads/'
     # 폴더 부재 시 자동 생성
