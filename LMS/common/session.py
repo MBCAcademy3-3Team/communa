@@ -18,8 +18,6 @@ class Session:
 
     @staticmethod
     def get_connection(): # 데이터베이스에 연결용 코드
-        print("get_connection()메서드 호출 - mysql에 접속됩니다.")
-
         return get_db()
 
     @classmethod

@@ -52,7 +52,8 @@ engine = create_engine(
         "ssl": {
             "check_hostname": False,
             "verify_mode": "cert_none"  # SSL 에러 방지용
-        }
+        },
+        # "cursorclass": pymysql.cursors.DictCursor,
     }
 )
 
@@ -89,12 +90,12 @@ def execute_query(sql, args=()):
     conn = get_db()
     try:
         with conn.cursor() as cursor:
-            rows = cursor.execute(sql, args)
+            rowcount = cursor.execute(sql, args)
             conn.commit()
-            return rows
+            return True
     except Exception as e:
         conn.rollback() # 에러 나면 되돌리기
-        raise e # 에러를 호출한 곳으로 다시 던져서 알림
+        return False
 
 def fetch_query(sql, args=(), one=False):
     """
