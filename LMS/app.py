@@ -833,10 +833,13 @@ def score_members():
 # ----------------------------------------------------------------------------------------------------------------------
 
 # 파일 처리 경로
-UPLOAD_FOLDER = 'uploads/'
-# 폴더 부재 시 자동 생성
-if not os.path.exists(UPLOAD_FOLDER) : # 'import os' 상단에 추가
-    os.makedirs(UPLOAD_FOLDER) # os.makedirs(경로) : 폴더 생성용 코드
+if not bool(os.getenv("FLASK_DEBUG", 1)):
+    UPLOAD_FOLDER = '/tmp/'
+else:
+    UPLOAD_FOLDER = 'uploads/'
+    # 폴더 부재 시 자동 생성
+    if not os.path.exists(UPLOAD_FOLDER) : # 'import os' 상단에 추가
+        os.makedirs(UPLOAD_FOLDER) # os.makedirs(경로) : 폴더 생성용 코드
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # 최대 용량 제한 (e.g. 16MB)
@@ -1333,6 +1336,6 @@ if __name__ == '__main__':
         app,
         host='0.0.0.0',
         port=int(os.getenv('FLASK_APP_PORT', 5000)),
-        debug=True,
+        debug=bool(os.getenv('FLASK_DEBUG', 1)),
         allow_unsafe_werkzeug=True
     )
