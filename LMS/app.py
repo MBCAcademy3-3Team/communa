@@ -1055,9 +1055,10 @@ def get_db_fortune(zodiac_name, target_date):
 
 # 대기열: 접속해서 매칭을 기다리는 유저들의 request.sid(고유ID) 저장
 socketio = SocketIO(app)
-waiting_users = []
+waiting_users = []  # 대기열: [{'user_id': 1, 'sid': 'xxx', 'name': '홍길동'}]
+active_rooms = {}  # 활성화된 방 정보: {'room_id': [user1_id, user2_id]}
 
-# 메인 화면
+# 랜덤매칭 화면
 @app.route('/chat')
 def chat():
     return render_template("chat.html")
@@ -1065,81 +1066,118 @@ def chat():
 # 랜덤 매칭
 @socketio.on("random_match")
 def handle_random_match():
-    global waiting_users
+    global waiting_users, active_rooms
+
+    user_id = session.get('user_id')
+    user_name = session.get('user_name')
     sid = request.sid
 
-# @socketio.on('join')
-# def on_join():
-#     user_id = request.sid
-#
-#     if sid in waiting_users:
-#         print("이미 대기 중:", sid)
-#         return
-#
-#     if waiting_users:
-#         partner_sid = waiting_users.pop(0)
-#
-#         if partner_sid == sid:
-#             waiting_users.append(sid)
-#             return
-#
-#         room_id = str(uuid.uuid4())
-#
-#         join_room(room_id)
-#         socketio.server.enter_room(partner_sid, room_id)
-#
-#         # 두 명 모두에게 매칭 알림
-#         socketio.emit("matched", {"room": room_id}, room=room_id)
-#
-#         print("매칭 완료:", room_id)
-#
-#     else:
-#         waiting_users.append(request.sid)
-#         print("대기열 추가:", request.sid)
-
-# 메시지 전송
-@socketio.on('send_message')
-def handle_send_message(data):
-    room = data.get("room")
-    message = data.get("message")
-
-    if not room:
+    if not user_id:
+        emit("receive_message", {"user": "📢 시스템", "message": "로그인이 필요합니다."})
         return
 
-    socketio.emit("receive_message", {
-        "user": "상대방",
-        "message": message
-    }, room=room, include_self=False)
+    # 중복 대기 방지
+    if any(u['user_id'] == user_id for u in waiting_users):
+        print(f"이미 대기 중: {user_name}")
+        return
 
-# 퇴장 메세지
+    if waiting_users:
+        # 매칭 성공
+        partner = waiting_users.pop(0)
+
+        if partner['user_id'] == user_id:
+            waiting_users.append(partner)
+            return
+
+        # 고유한 방 ID 생성
+        room_id = str(uuid.uuid4())
+
+        # [중요] 방 참여자 명단 기록 (DB 저장용)
+        active_rooms[room_id] = [user_id, partner['user_id']]
+
+        # 소켓 룸 입장
+        join_room(room_id)
+        socketio.server.enter_room(partner['sid'], room_id)
+
+        # 각자에게 매칭 알림 전송 (상대방 이름 포함)
+        emit("matched", {"room": room_id, "partner_name": partner['name']}, room=sid)
+        emit("matched", {"room": room_id, "partner_name": user_name}, room=partner['sid'])
+
+        print(f"매칭 완료: {user_name} & {partner['name']} (Room: {room_id})")
+
+    else:
+        # 대기열에 추가
+        waiting_users.append({'user_id': user_id, 'sid': sid, 'name': user_name})
+        print(f"대기열 추가: {user_name}")
+
+
+# 수신자 확인 후 메시지 데이터베이스 저장 (에러 시 롤백 포함)
+@socketio.on('send_message')
+def handle_send_message(data):
+    room_id = data.get("room")
+    message = data.get("message")
+    sender_id = session.get('user_id')
+    sender_name = session.get('user_name')
+
+    if not room_id or not message:
+        return
+
+    # [DB 저장 로직]
+    if room_id in active_rooms:
+        participants = active_rooms[room_id]
+        receiver_id = participants[0] if participants[1] == sender_id else participants[1]
+
+        conn = Session.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 방법 A: DB의 기능을 활용 (NOW() 사용 시 파라미터에서 제외)
+                sql = """
+                    INSERT INTO chats (room_id, sender_id, receiver_id, message, created_at)
+                    VALUES (%s, %s, %s, %s, NOW())
+                """
+                # %s 개수에 맞춰 4개의 데이터만 전달
+                cursor.execute(sql, (room_id, sender_id, receiver_id, message))
+
+            conn.commit()
+            print(f"✅ DB 저장 성공: {sender_name}님이 메시지를 보냄")
+        except Exception as e:
+            conn.rollback()  # 에러 시 안전하게 롤백
+            print(f"❌ DB 저장 에러: {e}")
+        finally:
+            conn.close()
+
+
+    # 상대방에게만 메시지 전송 (include_self=False)
+    emit("receive_message", {
+        "user": sender_name,
+        "message": message
+    }, room=room_id, include_self=False)
+
+# 퇴장 알림 및 메모리/방 정보 정리
 @socketio.on("leave_room")
 def handle_leave(data):
-    room = data.get("room")
-    leave_room(room)
+    room_id = data.get("room")
+    user_name = session.get('user_name')
 
-    socketio.emit("receive_message", {
-        "user": "📢 시스템",
-        "message": "상대방이 나갔습니다."
-    }, room=room)
+    if room_id:
+        leave_room(room_id)
+        # 방 정보 삭제 (메모리 관리)
+        if room_id in active_rooms:
+            del active_rooms[room_id]
 
-# 대기열 제거
+        emit("receive_message", {
+            "user": "📢 시스템",
+            "message": f"{user_name}님이 나갔습니다."
+        }, room=room_id)
+
+# 연결 종료 시 대기열(매칭 큐)에서 사용자 제거
 @socketio.on("disconnect")
 def handle_disconnect():
-
-    sid = request.sid
-
-    if sid in waiting_users:
-        waiting_users.remove(sid)
-        print("대기열에서 제거:", sid)
-
-@socketio.on('disconnect')
-def on_disconnect():
-
-    user_id = request.sid
-
-    if user_id in waiting_users:
-        waiting_users.remove(user_id)
-    print(f"접속 종료: {user_id}")
+    user_id = session.get('user_id')
+    # 접속 끊기면 대기열에서 삭제
+    global waiting_users
+    waiting_users = [u for u in waiting_users if u['user_id'] != user_id]
+    print(f"접속 종료 및 대기열 정리: {user_id}")
 
 # ----------------------------------------------------------------------------------------------------------------------
 #                                                 메모장

@@ -3,88 +3,41 @@
 {% block title %}랜덤 채팅{% endblock %}
 
 {% block content %}
-
 <div class="container py-5">
-
-    <!-- Page Title -->
     <div class="mb-4">
         <h2 class="fw-bold">💬 랜덤 채팅</h2>
-        <p class="text-muted small">
-            새로운 사용자와 랜덤으로 매칭되어 실시간 채팅을 즐겨보세요.
-        </p>
+        <p class="text-muted small">새로운 사용자와 실시간으로 매칭됩니다.</p>
     </div>
 
     <div class="row">
-
-        <!-- Chat Area -->
         <div class="col-lg-8">
             <div class="card shadow-sm rounded-4 border-0">
-                <div class="card-header bg-white fw-bold">
-                    채팅방
-                </div>
-
-                <div class="card-body" 
-                     id="chat-box"
-                     style="height:400px; overflow-y:auto; background:#f8f9fa;">
-
-                    <!-- 메시지 출력 영역 -->
-
-                </div>
-
-                <div class="card-footer bg-white">
+                <div class="card-header bg-white fw-bold border-bottom-0 pt-3">채팅창</div>
+                <div class="card-body" id="chat-box" style="height:450px; overflow-y:auto; background:#f8f9fa;">
+                    </div>
+                <div class="card-footer bg-white border-top-0 pb-3">
                     <div class="input-group">
-                        <input type="text"
-                               id="message-input"
-                               class="form-control"
-                               placeholder="메시지를 입력하세요..."
-                               autocomplete="off">
-                        <button class="btn btn-primary" id="send-btn">
-                            전송
-                        </button>
+                        <input type="text" id="message-input" class="form-control rounded-start-pill ps-3" placeholder="메시지를 입력하세요..." autocomplete="off">
+                        <button class="btn btn-primary rounded-end-pill px-4" id="send-btn">전송</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Side Panel -->
         <div class="col-lg-4 mt-4 mt-lg-0">
             <div class="card shadow-sm rounded-4 border-0">
-                <div class="card-body text-center">
-
+                <div class="card-body text-center py-4">
                     <h6 class="fw-bold mb-3">랜덤 매칭</h6>
-
-                    <p class="small text-muted">
-                        버튼을 누르면 랜덤 사용자와 연결됩니다.
-                    </p>
-
-                    <button class="btn btn-primary w-100 mb-2"
-                            id="match-btn">
-                        매칭 시작
-                    </button>
-
-                    <button class="btn btn-outline-danger w-100"
-                            id="leave-btn">
-                        채팅 종료
-                    </button>
-
-                    <hr>
-
-                    <p class="small text-muted mb-1">
-                        상태:
-                        <span id="status-text" class="fw-bold text-secondary">
-                            대기중
-                        </span>
-                    </p>
-
+                    <button class="btn btn-primary w-100 mb-2 py-2 fw-bold" id="match-btn">매칭 시작</button>
+                    <button class="btn btn-outline-danger w-100 py-2 fw-bold" id="leave-btn">채팅 종료</button>
+                    <hr class="my-4">
+                    <p class="small text-muted mb-0">상태: <span id="status-text" class="fw-bold text-secondary">대기중</span></p>
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 
-
-<!-- Socket.IO -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
     const socket = io();
@@ -97,90 +50,91 @@
 
     let currentRoom = null;
 
-    socket.on("connect", function () {
-        console.log("서버 연결됨");
+    // 매칭 시작 버튼
+    matchBtn.addEventListener("click", function () {
+        if (currentRoom) return;
+        matchBtn.disabled = true;
+        socket.emit("random_match");
+        statusText.innerText = "매칭 중...";
+        statusText.className = "fw-bold text-warning";
     });
 
-    // 매칭 요청
-   matchBtn.addEventListener("click", function () {
-
-    if (currentRoom) return;   // 이미 채팅중이면 막기
-
-    matchBtn.disabled = true;  // 🔥 버튼 잠금
-
-    socket.emit("random_match");
-
-    statusText.innerText = "매칭중...";
-    statusText.classList.remove("text-secondary");
-    statusText.classList.add("text-warning");
-});
-
-    // 매칭 완료
+    // 매칭 성공 시
     socket.on("matched", function (data) {
         currentRoom = data.room;
-        statusText.innerText = "채팅중";
-        statusText.classList.remove("text-warning");
-        statusText.classList.add("text-success");
-
-        addMessage("📢 시스템", "상대방과 연결되었습니다.");
+        statusText.innerText = "채팅 중";
+        statusText.className = "fw-bold text-success";
+        addMessage("📢 시스템", `${data.partner_name}님과 연결되었습니다.`);
     });
 
     // 메시지 수신
     socket.on("receive_message", function (data) {
         addMessage(data.user, data.message);
-    });
 
-    // 메시지 전송
-    sendBtn.addEventListener("click", sendMessage);
-    messageInput.addEventListener("keypress", function (e) {
-        if (e.key === "Enter") {
-            sendMessage();
+        // 상대방이 퇴장했을 때 처리
+        if (data.user === "📢 시스템" && data.message.includes("나갔습니다")) {
+            resetChatState();
         }
     });
 
+    // 메시지 전송 로직
     function sendMessage() {
         const message = messageInput.value.trim();
         if (!message || !currentRoom) return;
 
-        socket.emit("send_message", {
-            room: currentRoom,
-            message: message
-        });
-
+        socket.emit("send_message", { room: currentRoom, message: message });
         addMessage("나", message);
         messageInput.value = "";
     }
 
-    // 채팅 종료
+    sendBtn.addEventListener("click", sendMessage);
+    messageInput.addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
+
+    // 퇴장 버튼
     leaveBtn.addEventListener("click", function () {
-    if (currentRoom) {
-        socket.emit("leave_room", { room: currentRoom });
+        if (currentRoom) {
+            socket.emit("leave_room", { room: currentRoom });
+            addMessage("📢 시스템", "채팅을 종료했습니다.");
+            resetChatState();
+        }
+    });
 
-        addMessage("📢 시스템", "채팅이 종료되었습니다.");
-
+    function resetChatState() {
         currentRoom = null;
-
         statusText.innerText = "대기중";
-        statusText.classList.remove("text-success");
-        statusText.classList.add("text-secondary");
-
-        matchBtn.disabled = false;   // 🔥 다시 활성화
+        statusText.className = "fw-bold text-secondary";
+        matchBtn.disabled = false;
     }
-});
 
-    // 메시지 화면에 추가
+    // 말풍선 디자인 적용된 메시지 추가 함수
     function addMessage(user, message) {
         const div = document.createElement("div");
-        div.classList.add("mb-2");
+        div.className = "d-flex flex-column mb-3";
+
+        let alignClass = "align-items-start";
+        let bgColor = "bg-white text-dark border";
+        let textAlign = "";
+
+        if (user === "나") {
+            alignClass = "align-items-end";
+            bgColor = "bg-primary text-white border-0";
+        } else if (user === "📢 시스템") {
+            alignClass = "align-items-center w-100";
+            bgColor = "bg-light text-muted small border-0";
+            textAlign = "text-center";
+        }
 
         div.innerHTML = `
-            <strong>${user}:</strong>
-            <span>${message}</span>
+            <div class="${alignClass} w-100 d-flex flex-column ${user === '나' ? 'align-items-end' : (user === '📢 시스템' ? 'align-items-center' : 'align-items-start')}">
+                ${user !== "나" && user !== "📢 시스템" ? `<small class="fw-bold mb-1 ms-2">${user}</small>` : ''}
+                <div class="p-2 px-3 rounded-4 shadow-sm ${bgColor} ${textAlign}" style="max-width: 75%; word-break: break-all;">
+                    ${message}
+                </div>
+            </div>
         `;
 
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 </script>
-
 {% endblock %}
