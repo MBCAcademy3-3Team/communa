@@ -82,7 +82,9 @@
     const statusText = document.getElementById("status-text");
 
     let currentRoom = null;
+    let myNickname = ""; // [추가] 내가 쓸 익명 이름 저장용
 
+    // 매칭 시작 버튼
     matchBtn.addEventListener("click", function () {
         if (currentRoom) return;
         matchBtn.disabled = true;
@@ -91,24 +93,41 @@
         statusText.className = "fw-bold text-warning";
     });
 
+    // 매칭 성공 시
     socket.on("matched", function (data) {
         currentRoom = data.room;
+        // [수정] 서버가 정해준 나의 '익명 닉네임'을 저장합니다.
+        myNickname = data.partner_name;
+
         statusText.innerText = "채팅 중";
         statusText.className = "fw-bold text-success";
-        addMessage("📢 시스템", `${data.partner_name}님과 연결되었습니다.`);
+        // 화면엔 그냥 익명이라고 띄워줍니다.
+        addMessage("📢 시스템", `익명의 사용자님과 연결되었습니다.`);
     });
 
+    // 메시지 수신
     socket.on("receive_message", function (data) {
+        // [수정] 서버에서 보내온 'user'는 상대방의 닉네임입니다.
         addMessage(data.user, data.message);
+
         if (data.user === "📢 시스템" && data.message.includes("나갔습니다")) {
             resetChatState();
         }
     });
 
+    // 메시지 전송 로직
     function sendMessage() {
         const message = messageInput.value.trim();
-        if (!message || !currentRoom) return;
-        socket.emit("send_message", { room: currentRoom, message: message });
+        // 닉네임이 생성되지 않았으면 전송 안 함
+        if (!message || !currentRoom || !myNickname) return;
+
+        // [수정] 서버로 보낼 때 내 '닉네임'을 함께 실어서 보냅니다.
+        socket.emit("send_message", {
+            room: currentRoom,
+            message: message,
+            nickname: myNickname
+        });
+
         addMessage("나", message);
         messageInput.value = "";
     }
@@ -116,9 +135,13 @@
     sendBtn.addEventListener("click", sendMessage);
     messageInput.addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
 
+    // 퇴장 버튼
     leaveBtn.addEventListener("click", function () {
         if (currentRoom) {
-            socket.emit("leave_room", { room: currentRoom });
+            socket.emit("leave_room", {
+                room: currentRoom,
+                nickname: myNickname // 퇴장할 때도 내 닉네임을 알려줍니다.
+            });
             addMessage("📢 시스템", "채팅을 종료했습니다.");
             resetChatState();
         }
@@ -126,6 +149,7 @@
 
     function resetChatState() {
         currentRoom = null;
+        myNickname = ""; // 닉네임 초기화
         statusText.innerText = "대기중";
         statusText.className = "fw-bold text-secondary";
         matchBtn.disabled = false;
