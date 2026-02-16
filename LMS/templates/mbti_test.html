@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 700px;">
+    <div class="text-center mb-5">
+        <h1 class="fw-bold text-primary">💻 개발자 MBTI 테스트</h1>
+        <p class="lead text-muted">나의 개발 성향과 딱 맞는 동물은 무엇일까요?</p>
+    </div>
+
+    <form action="/mbti/result" method="POST" id="mbtiForm">
+        {% for q in questions %}
+        <div class="card shadow-sm mb-4 border-0 rounded-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3 text-secondary">Q{{ q.id }}.</h5>
+                <h4 class="mb-4 fw-bold">{{ q.question }}</h4>
+                
+                <div class="d-grid gap-2">
+                    {% for ans in q.answers %}
+                    <input type="radio" class="btn-check" name="{{ q.id }}" id="q{{ q.id }}_{{ ans.type }}" value="{{ ans.type }}" required>
+                    <label class="btn btn-outline-primary text-start p-3 fs-5 rounded-3" for="q{{ q.id }}_{{ ans.type }}">
+                        {{ ans.text }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="d-grid mt-5">
+            <button type="submit" class="btn btn-primary btn-lg rounded-pill fw-bold p-3 shadow">
+                결과 확인하기 🚀
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+    /* 선택된 라디오 버튼 스타일 강조 */
+    .btn-check:checked + .btn-outline-primary {
+        background-color: #e7f1ff;
+        border-color: #0d6efd;
+        color: #0d6efd;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}

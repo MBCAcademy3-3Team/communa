@@ -25,7 +25,7 @@ import os
 from LMS.common.db import fetch_query, execute_query
 from LMS.common.session import Session
 from LMS.domain import Board, Score
-from LMS.service import PostService
+from LMS.service import PostService, MbtiService
 from LMS.common.session import Session
 from datetime import datetime, timedelta
 from LMS.common.db import fetch_query, execute_query
@@ -1456,6 +1456,20 @@ def server_error(error):
     log_system('ERROR', 'CRITICAL', '500_ERROR', error_trace)
 
     return "서버에 오류가 발생했습니다. 관리자에게 문의하세요.", 500
+
+@app.route('/mbti')
+def mbti_main():
+    questions = MbtiService.get_questions()
+    return render_template('mbti_test.html', questions=questions)
+
+
+@app.route('/mbti/result', methods=['POST'])
+def mbti_result():
+    # 폼 데이터 받기 (질문 ID를 키로, 선택한 값(E/I 등)을 밸류로)
+    answers = request.form.to_dict()
+    mbti_type, result_data = MbtiService.calculate_mbti(answers)
+
+    return render_template('mbti_result.html', mbti=mbti_type, result=result_data)
 
 # ----------------------------------------------------------------------------------------------------------------------
 #                                                플라스크 실행
