@@ -1,46 +1,197 @@
 {% extends "layout.html" %}
 
+{% block title %}Communa - 개발자 성향 테스트{% endblock %}
+
 {% block content %}
+<style>
+    /* Communa 브랜드 컬러 정의 */
+    :root {
+        --communa-primary: #20828A;
+        --communa-hover: #186b72;
+        --communa-light: rgba(32, 130, 138, 0.1);
+    }
+
+    /* 1. 프로그레스 바 (상단 고정) */
+    .progress-container {
+        position: sticky;
+        top: 70px; /* 네비게이션 바 높이 고려 */
+        z-index: 99;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(5px);
+        padding: 10px 0;
+        margin-bottom: 20px;
+    }
+
+    .progress {
+        height: 10px;
+        border-radius: 5px;
+        background-color: #e9ecef;
+    }
+
+    .progress-bar {
+        background-color: var(--communa-primary);
+        transition: width 0.3s ease;
+    }
+
+    /* 2. 질문 카드 스타일 */
+    .question-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        transition: transform 0.2s ease;
+        background-color: #fff;
+    }
+
+    .question-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .question-badge {
+        background-color: var(--communa-light);
+        color: var(--communa-primary);
+        padding: 5px 12px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        display: inline-block;
+        margin-bottom: 15px;
+    }
+
+    /* 3. 답변 버튼 스타일 (커스텀 라디오 버튼) */
+    .btn-answer {
+        border: 2px solid #e9ecef;
+        background-color: #fff;
+        color: #495057;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .btn-answer:hover {
+        border-color: var(--communa-primary);
+        background-color: #f8fcfc; /* 아주 연한 틸색 배경 */
+        color: var(--communa-primary);
+    }
+
+    /* 선택되었을 때 스타일 */
+    .btn-check:checked + .btn-answer {
+        background-color: var(--communa-primary);
+        border-color: var(--communa-primary);
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(32, 130, 138, 0.3);
+        transform: scale(1.01);
+    }
+
+    /* 체크 아이콘 (선택 시 보임) */
+    .check-icon {
+        opacity: 0;
+        margin-right: 10px;
+        transition: opacity 0.2s;
+        font-size: 1.2rem;
+    }
+
+    .btn-check:checked + .btn-answer .check-icon {
+        opacity: 1;
+    }
+
+    /* 4. 제출 버튼 */
+    .btn-submit {
+        background-color: var(--communa-primary);
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .btn-submit:hover {
+        background-color: var(--communa-hover);
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(32, 130, 138, 0.2);
+    }
+</style>
+
 <div class="container py-5" style="max-width: 700px;">
+
     <div class="text-center mb-5">
-        <h1 class="fw-bold text-primary">💻 개발자 MBTI 테스트</h1>
-        <p class="lead text-muted">나의 개발 성향과 딱 맞는 동물은 무엇일까요?</p>
+        <span class="badge rounded-pill bg-light text-secondary border mb-2 px-3">Dev Type Test</span>
+        <h1 class="fw-bold mb-2" style="color: #333;">💻 개발자 MBTI 테스트</h1>
+        <p class="text-muted">상황별 문답을 통해 나의 코딩 성향을 알아보세요.</p>
+    </div>
+
+    <div class="progress-container rounded-3">
+        <div class="d-flex justify-content-between small text-muted mb-1 px-1">
+            <span>Progress</span>
+            <span id="progressText">0%</span>
+        </div>
+        <div class="progress shadow-sm">
+            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+        </div>
     </div>
 
     <form action="/mbti/result" method="POST" id="mbtiForm">
         {% for q in questions %}
-        <div class="card shadow-sm mb-4 border-0 rounded-4">
-            <div class="card-body p-4">
-                <h5 class="fw-bold mb-3 text-secondary">Q{{ q.id }}.</h5>
-                <h4 class="mb-4 fw-bold">{{ q.question }}</h4>
-                
-                <div class="d-grid gap-2">
+        <div class="card question-card mb-5" id="card_q{{ q.id }}">
+            <div class="card-body p-4 p-md-5">
+                <div class="question-badge">Q{{ loop.index }}</div>
+                <h4 class="mb-4 fw-bold lh-base" style="word-break: keep-all;">{{ q.question }}</h4>
+
+                <div class="d-grid gap-3">
                     {% for ans in q.answers %}
-                    <input type="radio" class="btn-check" name="{{ q.id }}" id="q{{ q.id }}_{{ ans.type }}" value="{{ ans.type }}" required>
-                    <label class="btn btn-outline-primary text-start p-3 fs-5 rounded-3" for="q{{ q.id }}_{{ ans.type }}">
-                        {{ ans.text }}
-                    </label>
+                    <div class="position-relative">
+                        <input type="radio" class="btn-check"
+                               name="{{ q.id }}"
+                               id="q{{ q.id }}_{{ ans.type }}"
+                               value="{{ ans.type }}"
+                               required
+                               onchange="updateProgress()">
+
+                        <label class="btn btn-answer p-3 rounded-4" for="q{{ q.id }}_{{ ans.type }}">
+                            <i class="bi bi-check-circle-fill check-icon"></i>
+                            <span class="fs-6">{{ ans.text }}</span>
+                        </label>
+                    </div>
                     {% endfor %}
                 </div>
             </div>
         </div>
         {% endfor %}
 
-        <div class="d-grid mt-5">
-            <button type="submit" class="btn btn-primary btn-lg rounded-pill fw-bold p-3 shadow">
-                결과 확인하기 🚀
+        <div class="d-grid mt-5 pb-5">
+            <button type="submit" class="btn btn-submit btn-lg rounded-pill fw-bold p-3 shadow-sm">
+                결과 분석하기 🚀
             </button>
         </div>
     </form>
 </div>
 
-<style>
-    /* 선택된 라디오 버튼 스타일 강조 */
-    .btn-check:checked + .btn-outline-primary {
-        background-color: #e7f1ff;
-        border-color: #0d6efd;
-        color: #0d6efd;
-        font-weight: bold;
+<script>
+    function updateProgress() {
+        const totalQuestions = {{ questions|length }};
+        // 체크된 라디오 버튼의 개수를 셉니다.
+        const answeredCount = document.querySelectorAll('.btn-check:checked').length;
+
+        // 퍼센트 계산
+        const percent = Math.round((answeredCount / totalQuestions) * 100);
+
+        // UI 업데이트
+        document.getElementById('progressBar').style.width = percent + '%';
+        document.getElementById('progressText').innerText = percent + '%';
+
+        // (선택사항) 답변 클릭 시 다음 문제로 부드럽게 스크롤 이동
+        // 현재 클릭된 요소의 부모 카드 찾기
+        /* const currentInput = document.querySelector('.btn-check:checked:focus');
+        if (currentInput) {
+            const currentCard = currentInput.closest('.question-card');
+            const nextCard = currentCard.nextElementSibling;
+            if (nextCard && nextCard.classList.contains('question-card')) {
+                setTimeout(() => {
+                    nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }
+        }
+        */
     }
-</style>
+</script>
 {% endblock %}
