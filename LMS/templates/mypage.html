@@ -2,132 +2,190 @@
 
 {% block content %}
 <style>
-    /* 프로필 컨테이너 */
-    .profile-wrapper {
+    /* Communa 브랜드 컬러 정의 */
+    :root {
+        --communa-primary: #20828A;
+        --communa-hover: #186b72;
+    }
+
+    /* 프로필 이미지 영역 */
+    .profile-container {
         position: relative;
-        width: 150px;
-        height: 150px;
-        margin: 0 auto;
-        background-color: #f8f9fa;
+        display: inline-block;
+        margin-bottom: 1.5rem;
+    }
+
+    .profile-img-main {
+        width: 160px;
+        height: 160px;
+        object-fit: cover;
         border-radius: 50%;
+        border: 5px solid white;
+        box-shadow: 0 8px 20px rgba(32, 130, 138, 0.15); /* 브랜드 컬러 그림자 */
+        background-color: #fff;
+    }
+
+    /* 기본 아이콘 (이미지 없을 때) */
+    .profile-placeholder {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background-color: #f1f3f5;
         display: flex;
         align-items: center;
         justify-content: center;
-    }
-
-    /* 이미지 스타일: 업로드된 사진이 있으면 이 스타일이 적용됨 */
-    .profile-img-main {
-        width: 150px;
-        height: 150px;
-        object-fit: cover; /* 이미지가 찌그러지지 않게 꽉 채움 */
-        border-radius: 50%;
-        border: 4px solid #fff;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        display: block;
-    }
-
-    /* 기본 아이콘 스타일 (사진 없을 때) */
-    .profile-default-icon {
+        border: 5px solid white;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        color: #adb5bd;
         font-size: 80px;
-        color: #dee2e6;
-        display: block;
     }
 
-    /* 인스타그램 스타일 + 버튼 */
-    .profile-edit-btn {
+    /* 카메라 버튼 (업로드) */
+    .camera-btn {
         position: absolute;
         bottom: 5px;
         right: 5px;
-        width: 38px;
-        height: 38px;
-        background-color: #0d6efd;
+        width: 42px;
+        height: 42px;
+        background-color: var(--communa-primary);
         color: white;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 3px solid #fff;
+        border: 3px solid white;
         cursor: pointer;
         transition: all 0.2s ease;
-        z-index: 10;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
-    .profile-edit-btn:hover {
+    .camera-btn:hover {
+        background-color: var(--communa-hover);
         transform: scale(1.1);
-        background-color: #0b5ed7;
     }
 
-    #profile_img_input {
-        display: none;
+    /* 활동 요약 카드 스타일 */
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px rgba(32, 130, 138, 0.1) !important;
+        border-color: var(--communa-primary);
+    }
+
+    /* 배경색 조정 */
+    body {
+        background-color: #fdfdfd;
     }
 </style>
 
-<div class="row justify-content-center mt-5">
-    <div class="col-md-8">
-        <div class="card shadow border-0">
-            <div class="card-header bg-info text-white py-3">
-                <h4 class="mb-0"><i class="bi bi-person-circle"></i> 마이페이지</h4>
-            </div>
-            <div class="card-body p-4">
-                <div class="row align-items-center">
-                    <div class="col-md-4 text-center border-end">
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
 
-                        <div class="profile-wrapper mb-4">
-                            {% if user.profile_img %}
-                            <img src="{{ user.profile_img }}"
-                                 alt="프로필" class="profile-img-main"
-                                 id="user_profile_img"
-                                 onerror="this.style.display='none'; document.getElementById('default-icon').style.display='block';">
-                            <i id="default-icon" class="bi bi-person-circle profile-default-icon" style="display:none;"></i>
-                            {% else %}
-                            <i class="bi bi-person-circle profile-default-icon"></i>
-                            {% endif %}
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+
+                <div class="bg-light" style="height: 100px; background: linear-gradient(135deg, #20828A 0%, #6cdbeb 100%); opacity: 0.9;"></div>
+
+                <div class="card-body p-4 p-md-5">
+                    <div class="row">
+                        <div class="col-md-4 text-center" style="margin-top: -80px;">
 
                             <form id="profileForm" action="/profile/upload" method="POST" enctype="multipart/form-data">
-                                <label for="profile_img_input" class="profile-edit-btn">
-                                    <i class="bi bi-plus-lg fs-5"></i>
-                                </label>
-                                <input type="file" name="profile_img" id="profile_img_input" accept="image/*" onchange="submitForm()" style="display: none;">
+                                <div class="profile-container">
+                                    {% if user.profile_img %}
+                                        <img src="{{ user.profile_img }}"
+                                             alt="프로필"
+                                             class="profile-img-main"
+                                             onerror="this.style.display='none'; document.getElementById('placeholder-icon').style.display='flex';">
+                                        <div id="placeholder-icon" class="profile-placeholder" style="display: none;">
+                                            <i class="bi bi-person-fill"></i>
+                                        </div>
+                                    {% else %}
+                                        <div class="profile-placeholder">
+                                            <i class="bi bi-person-fill"></i>
+                                        </div>
+                                    {% endif %}
+
+                                    <label for="profile_img_input" class="camera-btn" title="프로필 사진 변경">
+                                        <i class="bi bi-camera-fill"></i>
+                                    </label>
+                                    <input type="file" name="profile_img" id="profile_img_input" accept="image/*" onchange="submitForm()" style="display: none;">
+                                </div>
                             </form>
-                        </div>
-                        <h4 class="fw-bold">{{ user.name }}</h4>
-                        <span class="badge bg-primary mb-3">{{ user.role.upper() }}</span>
-                    </div>
 
-                    <div class="col-md-8 ps-md-5">
-                        <h5 class="text-muted border-bottom pb-2">기본 정보</h5>
-                        <div class="mb-3 mt-3">
-                            <strong>아이디:</strong> <span>{{ user.uid }}</span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>가입일:</strong> <span>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else "날짜없음" }}</span>
+                            <h3 class="fw-bold text-dark mt-2">{{ user.name }}</h3>
+                            <span class="badge rounded-pill px-3 py-2 fw-normal mt-1"
+                                  style="background-color: rgba(32, 130, 138, 0.1); color: #20828A; border: 1px solid #20828A;">
+                                {{ user.role.upper() }} 계정
+                            </span>
+
+                            <div class="d-grid mt-4">
+                                <a href="/member/edit" class="btn btn-outline-secondary rounded-pill btn-sm">
+                                    <i class="bi bi-gear-fill me-1"></i> 회원 정보 수정
+                                </a>
+                            </div>
                         </div>
 
-                        <h5 class="text-muted border-bottom pb-2 mt-4">활동 요약</h5>
-                        <div class="row mt-3">
-                            <div class="col-6">
-                                <div class="card bg-light border-0">
-                                    <div class="card-body text-center">
-                                        <small class="text-muted d-block">작성 게시글</small>
-                                        <a href="/board/my" class="h4 fw-bold text-decoration-none">{{ board_count }}건</a>
+                        <div class="col-md-8 ps-md-5 mt-4 mt-md-0">
+
+                            <h5 class="fw-bold mb-3" style="color: #20828A;">
+                                <i class="bi bi-person-lines-fill me-2"></i>기본 정보
+                            </h5>
+                            <div class="bg-light p-4 rounded-4 mb-4">
+                                <div class="row mb-2">
+                                    <div class="col-4 text-muted small">아이디</div>
+                                    <div class="col-8 fw-bold">{{ user.uid }}</div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-4 text-muted small">가입일자</div>
+                                    <div class="col-8 fw-bold">{{ user.created_at.strftime('%Y년 %m월 %d일') if user.created_at else "-" }}</div>
+                                </div>
+                            </div>
+
+                            <h5 class="fw-bold mb-3" style="color: #20828A;">
+                                <i class="bi bi-activity me-2"></i>활동 요약
+                            </h5>
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="card bg-white h-100 rounded-4 stat-card">
+                                        <div class="card-body text-center p-3">
+                                            <div class="mb-2 text-primary">
+                                                <i class="bi bi-pencil-square fs-3"></i>
+                                            </div>
+                                            <small class="text-muted d-block mb-1">작성 게시글</small>
+                                            <a href="/board/my" class="h4 fw-bold text-dark text-decoration-none stretched-link">
+                                                {{ board_count }}<span class="fs-6 fw-normal text-muted ms-1">건</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-white h-100 rounded-4 stat-card">
+                                        <div class="card-body text-center p-3">
+                                            <div class="mb-2 text-success">
+                                                <i class="bi bi-graph-up-arrow fs-3"></i>
+                                            </div>
+                                            <small class="text-muted d-block mb-1">성적 리포트</small>
+                                            <a href="/score/my" class="h5 fw-bold text-dark text-decoration-none stretched-link d-block mt-1">
+                                                조회하기
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-6">
-                                <div class="card bg-light border-0">
-                                    <div class="card-body text-center">
-                                        <small class="text-muted d-block">성적 등록 여부</small>
-                                        <a href="/score/my" class="h4 fw-bold text-success text-decoration-none">확인하기</a>
-                                    </div>
-                                </div>
-                            </div>
+
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="card-footer bg-white border-0 text-end p-4">
-                <a href="/member/edit" class="btn btn-warning btn-sm text-white">정보 수정</a>
-                <button class="btn btn-outline-secondary btn-sm" onclick="location.href='/'">홈으로</button>
+
+                <div class="card-footer bg-light border-0 text-center py-3">
+                    <button class="btn btn-link text-muted text-decoration-none btn-sm" onclick="location.href='/'">
+                        <i class="bi bi-arrow-left me-1"></i> 홈으로 돌아가기
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -136,8 +194,8 @@
 <script>
     function submitForm() {
         const fileInput = document.getElementById('profile_img_input');
-        console.log(`fileInput : ${fileInput}`);
         if (fileInput.files && fileInput.files[0]) {
+            // 선택 즉시 폼 제출
             document.getElementById('profileForm').submit();
         }
     }
